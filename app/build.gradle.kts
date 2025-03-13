@@ -82,4 +82,6 @@ dependencies {
     implementation(libs.androidx.splash)
 
     implementation(libs.coil.compose)
+
+    implementation(libs.ucrop)
 }

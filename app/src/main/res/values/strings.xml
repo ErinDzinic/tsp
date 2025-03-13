@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">tsp</string>
     <string name="select_an_image">Select an image</string>
+    <string name="next">Next</string>
 </resources>

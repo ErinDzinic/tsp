@@ -1,6 +1,7 @@
 [versions]
 agp = "8.3.1"
 coilCompose = "2.6.0"
+imagecropview = "3.1.0"
 kotlin = "1.9.0"
 coreKtx = "1.15.0"
 junit = "4.13.2"
@@ -16,11 +17,13 @@ hiltCommon = "1.2.0"
 ksp-plugin = "1.9.0-1.0.13"
 timber = "5.0.1"
 androidx-splash = "1.0.1"
+ucrop = "2.2.10"
 
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coilCompose" }
+imagecropview = { module = "io.github.rroohit:ImageCropView", version.ref = "imagecropview" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
@@ -42,6 +45,7 @@ androidx-hilt-common = { group = "androidx.hilt", name = "hilt-common", version.
 androidx-splash = { group = "androidx.core", name = "core-splashscreen", version.ref = "androidx-splash" }
 
 timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
+ucrop = { module = "com.github.yalantis:ucrop", version.ref = "ucrop" }
 
 
 [plugins]
