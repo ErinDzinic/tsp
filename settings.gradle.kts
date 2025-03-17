@@ -22,4 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "tsp"
 include(":app")
- 
+include(":openCV")

@@ -10,4 +10,10 @@ class TspApp : Application(){
         super.onCreate()
         Timber.plant(Timber.DebugTree())
     }
+
+    companion object {
+        init {
+            System.loadLibrary("opencv_java4")
+        }
+    }
 }

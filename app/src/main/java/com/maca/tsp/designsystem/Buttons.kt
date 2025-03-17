@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,8 +24,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import com.maca.tsp.R
+import com.maca.tsp.data.enums.ImageFilterType
 import com.maca.tsp.ui.theme.TspTheme
 
 @Composable
@@ -33,7 +35,7 @@ fun PrimaryButton(
     modifier: Modifier = Modifier
         .fillMaxWidth()
         .padding(horizontal = TspTheme.spacing.spacing6)
-        .height(50.dp),
+        .height(TspTheme.spacing.spacing6_25),
     isDisabled: Boolean = false,
     icon: Int = R.drawable.path_9,
     onClick: () -> Unit
@@ -41,7 +43,7 @@ fun PrimaryButton(
     OutlinedButton(
         onClick = { if (!isDisabled) onClick() },
         modifier = modifier,
-        shape = RoundedCornerShape(30.dp),
+        shape = RoundedCornerShape(TspTheme.spacing.spacing3_75),
         colors = ButtonDefaults.buttonColors(
             containerColor =
                 if (isDisabled) TspTheme.colors.onSurface.copy(alpha = 0.12f)
@@ -51,7 +53,7 @@ fun PrimaryButton(
         Row(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
-        ){
+        ) {
             Icon(
                 modifier = Modifier.padding(end = TspTheme.spacing.spacing1),
                 painter = painterResource(icon),
@@ -74,16 +76,16 @@ fun SecondaryButton(
     modifier: Modifier = Modifier
         .fillMaxWidth()
         .padding(horizontal = TspTheme.spacing.spacing2)
-        .height(50.dp),
+        .height(TspTheme.spacing.spacing6_25),
     isDisabled: Boolean = false,
-    icon: Int = com.maca.tsp.R.drawable.ic_arrow_right,
+    icon: Int = R.drawable.ic_arrow_right,
     onClick: () -> Unit
 ) {
     OutlinedButton(
         onClick = { if (!isDisabled) onClick() },
         modifier = modifier,
-        shape = RoundedCornerShape(30.dp),
-        border = BorderStroke(1.dp, TspTheme.colors.colorPurple),
+        shape = RoundedCornerShape(TspTheme.spacing.spacing3_75),
+        border = BorderStroke(TspTheme.spacing.unit, TspTheme.colors.colorPurple),
         colors = ButtonDefaults.outlinedButtonColors(
             contentColor = TspTheme.colors.colorPurple,
             containerColor = TspTheme.colors.colorPurple,
@@ -92,7 +94,7 @@ fun SecondaryButton(
         Row(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
-        ){
+        ) {
             Text(
                 text = text,
                 color = TspTheme.colors.background,
@@ -100,7 +102,9 @@ fun SecondaryButton(
             )
 
             Icon(
-                modifier = Modifier.padding(start = TspTheme.spacing.spacing1).size(TspTheme.spacing.spacing4),
+                modifier = Modifier
+                    .padding(start = TspTheme.spacing.spacing1)
+                    .size(TspTheme.spacing.spacing4),
                 painter = painterResource(icon),
                 contentDescription = null,
                 tint = Color.White
@@ -112,6 +116,7 @@ fun SecondaryButton(
 @Composable
 fun TspCircularIconButton(
     icon: Painter,
+    buttonSize: Dp = TspTheme.spacing.spacing6_25,
     modifier: Modifier = Modifier,
     isDisabled: Boolean = false,
     backgroundColor: Color = TspTheme.colors.colorGrayishBlack,
@@ -121,8 +126,12 @@ fun TspCircularIconButton(
     IconButton(
         onClick = { if (!isDisabled) onClick() },
         modifier = modifier
-            .size(50.dp)
-            .border(2.dp, TspTheme.colors.white.copy(alpha = 0.3f), CircleShape)
+            .size(buttonSize)
+            .border(
+                TspTheme.spacing.extra_xxs,
+                TspTheme.colors.white.copy(alpha = 0.3f),
+                CircleShape
+            )
             .background(backgroundColor, CircleShape),
         colors = IconButtonDefaults.iconButtonColors(
             containerColor = Color.Transparent,
@@ -134,6 +143,38 @@ fun TspCircularIconButton(
             contentDescription = null,
             tint = iconColor,
             modifier = Modifier.size(TspTheme.spacing.spacing3)
+        )
+    }
+}
+
+@Composable
+fun FilterButton(
+    filterType: ImageFilterType,
+    isSelected: Boolean,
+    buttonSize: Dp = TspTheme.spacing.spacing6_25,
+    onClick: () -> Unit
+) {
+    val backgroundColor =
+        if (isSelected) TspTheme.colors.colorPurple else TspTheme.colors.colorGrayishBlack
+    val iconColor = if (isSelected) TspTheme.colors.darkYellow else Color.White
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        TspCircularIconButton(
+            icon = painterResource(id = filterType.iconRes),
+            buttonSize = buttonSize,
+            backgroundColor = backgroundColor,
+            iconColor = iconColor,
+            onClick = onClick,
+            modifier = Modifier.padding(horizontal = TspTheme.spacing.spacing0_5)
+        )
+        Text(
+            modifier = Modifier.padding(top = TspTheme.spacing.spacing1),
+            text = filterType.displayName,
+            color = TspTheme.colors.background,
+            style = TspTheme.typography.labelMedium
         )
     }
 }

@@ -2,4 +2,5 @@
     <string name="app_name">tsp</string>
     <string name="select_an_image">Select an image</string>
     <string name="next">Next</string>
+    <string name="black_and_white_grayscale">Black and White/Grayscale</string>
 </resources>
