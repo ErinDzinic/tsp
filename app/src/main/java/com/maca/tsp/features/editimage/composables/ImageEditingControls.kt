@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.maca.tsp.R
+import com.maca.tsp.data.enums.ControlMode
 import com.maca.tsp.designsystem.SecondaryButton
 import com.maca.tsp.designsystem.TspCircularIconButton
 import com.maca.tsp.presentation.state.ImageContract
@@ -63,7 +64,10 @@ fun ImageEditingControls(
                     iconColor = if (viewState.isMinimized) TspTheme.colors.darkYellow else TspTheme.colors.background,
                     onClick = { onEvent(ImageContract.ImageEvent.IsMinimized) }
                 )
-                SecondaryButton(stringResource(R.string.next), onClick = { })
+                SecondaryButton(stringResource(R.string.next), onClick = {
+                    onEvent(ImageContract.ImageEvent.ChangeControlMode(
+                        ControlMode.ADVANCED))
+                })
             }
         }
     }

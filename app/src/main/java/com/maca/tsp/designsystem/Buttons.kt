@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import com.maca.tsp.R
 import com.maca.tsp.data.enums.ImageFilterType
@@ -78,7 +79,7 @@ fun SecondaryButton(
         .padding(horizontal = TspTheme.spacing.spacing2)
         .height(TspTheme.spacing.spacing6_25),
     isDisabled: Boolean = false,
-    icon: Int = R.drawable.ic_arrow_right,
+    icon: Int = R.drawable.ic_right,
     onClick: () -> Unit
 ) {
     OutlinedButton(
@@ -176,5 +177,45 @@ fun FilterButton(
             color = TspTheme.colors.background,
             style = TspTheme.typography.labelMedium
         )
+    }
+}
+
+@Composable
+fun BackButton(
+    modifier: Modifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = TspTheme.spacing.spacing2)
+        .height(TspTheme.spacing.spacing6_25),
+    isDisabled: Boolean = false,
+    onClick: () -> Unit
+) {
+    OutlinedButton(
+        onClick = { if (!isDisabled) onClick() },
+        modifier = modifier,
+        shape = RoundedCornerShape(TspTheme.spacing.spacing3_75),
+        border = BorderStroke(TspTheme.spacing.unit, TspTheme.colors.colorPurple),
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = TspTheme.colors.colorPurple,
+            containerColor = TspTheme.colors.colorPurple,
+        )
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.Start,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                modifier = Modifier
+                    .size(TspTheme.spacing.spacing4),
+                painter = painterResource(R.drawable.ic_back),
+                contentDescription = null,
+                tint = Color.White
+            )
+
+            Text(
+                text = stringResource(R.string.back),
+                color = TspTheme.colors.background,
+                style = TspTheme.typography.bodyLarge
+            )
+        }
     }
 }

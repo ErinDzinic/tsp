@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.core.graphics.withSave
 import kotlin.math.min
 
 @Composable
@@ -30,6 +31,7 @@ fun EditableImageCanvas(
     // Image transformations
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
+    var rotation by remember { mutableFloatStateOf(0f) }
 
     Box(
         modifier = Modifier
@@ -43,9 +45,10 @@ fun EditableImageCanvas(
                 modifier = Modifier
                     .fillMaxSize()
                     .pointerInput(Unit) {
-                        detectTransformGestures { _, pan, zoom, _ ->
+                        detectTransformGestures { _, pan, zoom, rotationChange ->
                             scale = (scale * zoom).coerceIn(0.5f, 3f) // Restrict zooming
                             offset = Offset(offset.x + pan.x, offset.y + pan.y) // Dragging
+                            rotation += rotationChange // Update rotation
                         }
                     }
             ) {
@@ -66,25 +69,31 @@ fun EditableImageCanvas(
                 val bitmapHeight = bitmap.height.toFloat()
                 val scaleFactor = min(viewportWidth / bitmapWidth, adjustedHeight / bitmapHeight)
 
+                val centerX = viewportWidth / 2f
+                val centerY = adjustedHeight / 2f
+
                 with(drawContext.canvas.nativeCanvas) {
-                    save()
+                    withSave {
 
-                    // Translate to center viewport
-                    translate(left + offset.x, top + offset.y)
+                        // Translate to center viewport
+                        translate(left + offset.x, top + offset.y)
 
-                    // Scale keeping image centered within A4
-                    scale(scale * scaleFactor, scale * scaleFactor, viewportWidth / 2f, adjustedHeight / 2f)
+                        // Rotation should be applied at the center of the viewport
+                        rotate(rotation, centerX, centerY)
 
-                    // Center image inside the A4 viewport
-                    drawImage(
-                        image = bitmap.asImageBitmap(),
-                        topLeft = Offset(
-                            (viewportWidth - bitmapWidth * scaleFactor) / 2f,
-                            (adjustedHeight - bitmapHeight * scaleFactor) / 2f
+                        // Scale keeping image centered within A4
+                        scale(scale * scaleFactor, scale * scaleFactor, centerX, centerY)
+
+                        // Center image inside the A4 viewport
+                        drawImage(
+                            image = bitmap.asImageBitmap(),
+                            topLeft = Offset(
+                                (viewportWidth - bitmapWidth * scaleFactor) / 2f,
+                                (adjustedHeight - bitmapHeight * scaleFactor) / 2f
+                            )
                         )
-                    )
 
-                    restore()
+                    }
                 }
             }
         }

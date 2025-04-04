@@ -23,6 +23,7 @@ import com.maca.tsp.ui.theme.TspTheme
 @Composable
 fun ImageFilterControls(
     selectedFilter: ImageFilterType?,
+    showExposure: Boolean = true,
     onFilterSelected: (ImageFilterType) -> Unit,
     filterValue: Float,
     onValueChange: (Float) -> Unit
@@ -45,9 +46,9 @@ fun ImageFilterControls(
 
             Slider(
                 value = filterValue,
-                onValueChange = onValueChange, // This can now directly pass the value
+                onValueChange = onValueChange,
                 enabled = selectedFilter != null,
-                valueRange = -100f..100f,
+                valueRange = selectedFilter?.valueRange ?: 0f..1f,
                 modifier = Modifier
                     .weight(1f)
                     .padding(bottom = TspTheme.spacing.spacing1),
@@ -71,12 +72,19 @@ fun ImageFilterControls(
             horizontalArrangement = Arrangement.spacedBy(TspTheme.spacing.spacing1_75),
             contentPadding = PaddingValues(horizontal = TspTheme.spacing.spacing0_5)
         ) {
-            items(filterOptions.size) { index ->
+            val filteredOptions = if (showExposure) {
+                filterOptions
+            } else {
+                filterOptions.filter { it != ImageFilterType.EXPOSURE }
+            }
+
+            items(filteredOptions.size) { index ->
+                val filter = filteredOptions[index]
                 FilterButton(
                     buttonSize = TspTheme.spacing.spacing8_5,
-                    filterType = filterOptions[index],
-                    isSelected = filterOptions[index] == selectedFilter,
-                    onClick = { onFilterSelected(filterOptions[index]) }
+                    filterType = filter,
+                    isSelected = filter == selectedFilter,
+                    onClick = { onFilterSelected(filter) }
                 )
             }
         }

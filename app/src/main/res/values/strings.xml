@@ -3,4 +3,6 @@
     <string name="select_an_image">Select an image</string>
     <string name="next">Next</string>
     <string name="black_and_white_grayscale">Black and White/Grayscale</string>
+    <string name="back">Back</string>
+    <string name="print">Print</string>
 </resources>

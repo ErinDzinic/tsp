@@ -1,11 +1,13 @@
 package com.maca.tsp.presentation.viewmodel
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.net.Uri
 import com.maca.tsp.common.util.DispatcherProvider
 import com.maca.tsp.common.util.ImageFilterUtils
 import com.maca.tsp.common.util.ImageUtils.saveBitmapToUri
 import com.maca.tsp.common.util.ImageUtils.uriToBitmap
+import com.maca.tsp.data.enums.ControlMode
 import com.maca.tsp.data.enums.ImageFilterType
 import com.maca.tsp.presentation.state.BaseViewModel
 import com.maca.tsp.presentation.state.ImageContract.ImageEffect
@@ -21,6 +23,8 @@ class ImageViewModel @Inject constructor(
 ) : BaseViewModel<ImageEvent, ImageViewState, ImageEffect>(
     dispatcher
 ) {
+    // Keep an original bitmap to use as a base for all transformations
+    private var originalBitmap: Bitmap? = null
 
     override fun setInitialState(): ImageViewState = ImageViewState()
 
@@ -29,17 +33,56 @@ class ImageViewModel @Inject constructor(
             is ImageEvent.ImageSelected -> handleImageSelected(event)
             is ImageEvent.IsMinimized -> setState { copy(isMinimized = !isMinimized) }
             is ImageEvent.StartCrop -> startCropping()
-            is ImageEvent.CropResult -> handleCropResult(event.uri,event.context)
-            is ImageEvent.ToggleBlackAndWhite -> handleToggleBlackAndWhite(event.isEnabled, event.context)
+            is ImageEvent.CropResult -> handleCropResult(event.uri, event.context)
+            is ImageEvent.ToggleBlackAndWhite -> handleToggleBlackAndWhite(event.isEnabled)
             is ImageEvent.FlipImage -> handleFlipImage(event.horizontal, event.context)
             is ImageEvent.CancelCrop -> setState { copy(isCropping = false) }
             is ImageEvent.SelectFilter -> setState { copy(selectedFilter = event.filterType) }
             is ImageEvent.UpdateFilterValue -> updateFilterValue(event)
+            is ImageEvent.ChangeControlMode -> {
+                if (event.mode != ControlMode.BASIC) {
+                    enableSketch()
+                    setState {
+                        copy(
+                            brightness = 0f,
+                            contrast = 1f,
+                            exposure = 0f,
+                            gamma = 1f,
+                            sharpness = 0f,
+
+                        )
+                    }
+                } else {
+                    disableSketch()
+                }
+                setState { copy(controlMode = event.mode) }
+            }
+
+            ImageEvent.DisableSketch -> disableSketch()
+            ImageEvent.EnableSketch -> enableSketch()
+            ImageEvent.PrintButtonClicked -> {
+                setState { copy(showPrintDialog = true) }
+            }
+            ImageEvent.PrintDialogDismissed -> {
+                setState { copy(showPrintDialog = false) }
+            }
+            is ImageEvent.PrintTypeSelected -> {
+                // First, save the current state, then prepare for print
+                setState { copy(showPrintDialog = false, selectedPrintType = event.printType) }
+                // Trigger saving BEFORE proceeding to print preparation
+                setEvent(ImageEvent.SaveCanvasStateRequested)
+                // The actual print preparation will be triggered after successful save
+                // (See SaveCanvasStateRequested handler)
+            }
+            ImageEvent.SaveCanvasStateRequested -> {
+                setEffect { ImageEffect.Navigation.ToPrintPreview }
+            }
         }
     }
 
     private fun handleImageSelected(event: ImageEvent.ImageSelected) {
         val bitmap = uriToBitmap(event.context, event.uri)
+        originalBitmap = bitmap // Store the original for future transformations
         setState {
             copy(
                 rawImage = event.uri,
@@ -47,10 +90,11 @@ class ImageViewModel @Inject constructor(
                 transformedImage = bitmap,
                 selectedFilter = null,
                 brightness = 0f,
-                exposure = 0f,
-                contrast = 0f,
+                exposure = 1f,
+                contrast = 1f,
                 sharpness = 0f,
-                gamma = 0f
+                gamma = 1f,
+                isBlackAndWhite = false
             )
         }
         setEffect { ImageEffect.Navigation.ToImageDetails }
@@ -60,8 +104,11 @@ class ImageViewModel @Inject constructor(
         setState { copy(isCropping = true) }
     }
 
+    //TODO Pitaj RIKIJA!: Kada se kropa/flipa slika da li ona postaje originnalna? Te filteri se vracaju na nulu?
+
     private fun handleCropResult(uri: Uri, context: Context) {
         val croppedBitmap = uriToBitmap(context, uri)
+        originalBitmap = croppedBitmap
 
         setState {
             copy(
@@ -72,38 +119,24 @@ class ImageViewModel @Inject constructor(
                 // Reset filter values
                 brightness = 0f,
                 contrast = 1f,
-                exposure = 0f,
+                exposure = 1f,
                 gamma = 1f,
-                sharpness = 0f
+                sharpness = 0f,
+                isBlackAndWhite = false
             )
         }
     }
 
-    private fun handleToggleBlackAndWhite(isEnabled: Boolean, context: Context) {
-        val currentBitmap = viewState.value.transformedImage ?: uriToBitmap(context, viewState.value.rawImage!!)
-
-        val filteredBitmap = if (isEnabled && currentBitmap != null) {
-            ImageFilterUtils.applyBlackAndWhiteFilter(currentBitmap)
-        } else {
-            currentBitmap
-        }
-
-        setState {
-            copy(
-                isBlackAndWhite = isEnabled,
-                transformedImage = filteredBitmap,
-                displayBitmap = if (isEnabled) filteredBitmap else uriToBitmap(context, viewState.value.rawImage!!),
-                brightness = viewState.value.brightness
-            )
-        }
+    private fun handleToggleBlackAndWhite(isEnabled: Boolean) {
+        applyAllFilters(isEnabled)
     }
 
     private fun handleFlipImage(horizontal: Boolean, context: Context) {
-        val currentImage = viewState.value.transformedImage ?: uriToBitmap(context, viewState.value.rawImage ?: return)
+        val currentImage = viewState.value.transformedImage ?: return
 
-        val flippedBitmap = ImageFilterUtils.flipBitmap(currentImage!!, horizontal)
+        val flippedBitmap = ImageFilterUtils.flipBitmap(currentImage, horizontal)
+        originalBitmap = flippedBitmap
 
-        // Convert flipped image to Uri
         val flippedUri = saveBitmapToUri(context, flippedBitmap)
 
         setState {
@@ -115,47 +148,86 @@ class ImageViewModel @Inject constructor(
                 contrast = 1f,
                 exposure = 0f,
                 gamma = 1f,
-                sharpness = 0f
+                sharpness = 0f,
+                isBlackAndWhite = false
             )
         }
     }
 
     private fun updateFilterValue(event: ImageEvent.UpdateFilterValue) {
-        // 1. Update the filter value in state
-        setState {
-            when(event.filterType) {
-                ImageFilterType.BRIGHTNESS -> copy(brightness = event.value)
-                ImageFilterType.EXPOSURE -> copy(exposure = event.value)
-                ImageFilterType.CONTRAST -> copy(contrast = event.value)
-                ImageFilterType.GAMMA -> copy(gamma = event.value)
-                ImageFilterType.SHARPNESS -> copy(sharpness = event.value)
-            }
+        val newState = when (event.filterType) {
+            ImageFilterType.BRIGHTNESS -> viewState.value.copy(brightness = event.value)
+            ImageFilterType.CONTRAST -> viewState.value.copy(contrast = event.value)
+            ImageFilterType.EXPOSURE -> viewState.value.copy(exposure = event.value)
+            ImageFilterType.GAMMA -> viewState.value.copy(gamma = event.value)
+            ImageFilterType.SHARPNESS -> viewState.value.copy(sharpness = event.value)
+            ImageFilterType.GAUSSIAN_BLUR -> viewState.value.copy(gaussianBlur = event.value)
         }
 
-        // 2. Then reapply all filters
-        applyAllFilters(event.context)
+        setState { newState }
+        applyAllFilters(viewState.value.isBlackAndWhite)
     }
 
-    private fun applyAllFilters(context: Context) {
-        // Get the latest state
-        val currentState = viewState.value
+    private fun applyAllFilters(blackAndWhite: Boolean) {
+        val baseBitmap = originalBitmap ?: return
+        var result = baseBitmap.copy(baseBitmap.config!!, true)
 
-        // Start with the base transformed image (after crop/flip)
-        val baseImage = currentState.transformedImage ?:
-        uriToBitmap(context, currentState.rawImage ?: return)
-
-        // Create a copy to work with
-        var resultBitmap = baseImage?.copy(baseImage.config!!, true)
-
-        // Apply filters in sequence
-        if (currentState.brightness != 0f) {
-            resultBitmap = ImageFilterUtils.applyBrightness(resultBitmap!!, currentState.brightness)
+        // Brightness
+        if (viewState.value.brightness != 0f) {
+            result = ImageFilterUtils.applyBrightness(result, viewState.value.brightness)
         }
 
-        // Apply other filters...
-        // (Add similar logic for contrast, exposure, etc.)
+        // Exposure
+        if (viewState.value.exposure != 1f) {
+            result = ImageFilterUtils.applyExposure(result, viewState.value.exposure)
+        }
 
-        // Update only the display bitmap with the filtered result
-        setState { copy(displayBitmap = resultBitmap) }
+        // Contrast
+        if (viewState.value.contrast != 1f) {
+            result = ImageFilterUtils.applyContrast(result, viewState.value.contrast)
+        }
+
+        // Gamma
+        if (viewState.value.gamma != 1f) {
+            result = ImageFilterUtils.applyGamma(result, viewState.value.gamma)
+        }
+
+        // Sharpness
+        if (viewState.value.sharpness != 0f) {
+            result = ImageFilterUtils.applySharpness(result, viewState.value.sharpness)
+        }
+
+        // Black & White
+        if (blackAndWhite) {
+            result = ImageFilterUtils.applyBlackAndWhiteFilter(result)
+        }
+
+        // Sketch
+        if (viewState.value.isSketchEnabled) {
+            result = ImageFilterUtils.applySketchFilter(result)
+        }
+
+        // Gaussian Blur/Details
+        if (viewState.value.gaussianBlur > 1f) {
+            result = ImageFilterUtils.applyGaussianBlur(result, viewState.value.gaussianBlur)
+        }
+
+        setState {
+            copy(
+                transformedImage = result,
+                displayBitmap = result,
+                isBlackAndWhite = blackAndWhite
+            )
+        }
+    }
+
+    private fun enableSketch() {
+        setState { copy(isSketchEnabled = true, gamma = 1f) }
+        applyAllFilters(viewState.value.isBlackAndWhite)
+    }
+
+    private fun disableSketch() {
+        setState { copy(isSketchEnabled = false) }
+        applyAllFilters(viewState.value.isBlackAndWhite)
     }
 }
