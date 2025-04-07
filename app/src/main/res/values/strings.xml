@@ -5,4 +5,7 @@
     <string name="black_and_white_grayscale">Black and White/Grayscale</string>
     <string name="back">Back</string>
     <string name="print">Print</string>
+    <string name="print_single">Print Single</string>
+    <string name="print_sleeve">Print Sleeve</string>
+    <string name="print_big_piece">Print Big Piece</string>
 </resources>

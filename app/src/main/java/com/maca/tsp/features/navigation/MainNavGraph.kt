@@ -57,6 +57,8 @@ fun MainScreenNavHost(
     ) {
         composable(MainNavigationItem.Home.route) { HomeScreen(imageViewModel::setEvent) }
         composable(MainNavigationItem.EditImage.route) { EditImageScreen(viewState = viewState, onEvent = imageViewModel::setEvent) }
-        composable(MainNavigationItem.PrintPreview.route) { PrintPreviewCanvas(viewState = viewState, onEvent = imageViewModel::setEvent) }
+        composable(MainNavigationItem.PrintPreview.route) { PrintPreviewCanvas(viewState = viewState, onEvent = imageViewModel::setEvent, onExitClick = {
+            navController.popBackStack()
+        }) }
     }
 }

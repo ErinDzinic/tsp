@@ -79,6 +79,7 @@ fun SecondaryButton(
         .padding(horizontal = TspTheme.spacing.spacing2)
         .height(TspTheme.spacing.spacing6_25),
     isDisabled: Boolean = false,
+    showIcon: Boolean = true,
     icon: Int = R.drawable.ic_right,
     onClick: () -> Unit
 ) {
@@ -102,14 +103,16 @@ fun SecondaryButton(
                 style = TspTheme.typography.bodyLarge
             )
 
-            Icon(
-                modifier = Modifier
-                    .padding(start = TspTheme.spacing.spacing1)
-                    .size(TspTheme.spacing.spacing4),
-                painter = painterResource(icon),
-                contentDescription = null,
-                tint = Color.White
-            )
+            if(showIcon){
+                Icon(
+                    modifier = Modifier
+                        .padding(start = TspTheme.spacing.spacing1)
+                        .size(TspTheme.spacing.spacing4),
+                    painter = painterResource(icon),
+                    contentDescription = null,
+                    tint = Color.White
+                )
+            }
         }
     }
 }
