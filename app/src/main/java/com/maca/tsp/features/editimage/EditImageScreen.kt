@@ -16,6 +16,7 @@ import com.maca.tsp.data.enums.ControlMode
 import com.maca.tsp.designsystem.dialogs.PrintOptionsDialog
 import com.maca.tsp.features.editimage.composables.ImageCanvasContainer
 import com.maca.tsp.features.editimage.controls.BasicControls
+import com.maca.tsp.features.editimage.controls.DotworkControls
 import com.maca.tsp.features.editimage.controls.SecondControls
 import com.maca.tsp.features.editimage.controls.ThirdControls
 import com.maca.tsp.features.editimage.cropimage.CropImageScreen
@@ -41,7 +42,9 @@ fun EditImageScreen(
     )
 
     Box(
-        modifier = Modifier.fillMaxSize().background(TspTheme.colors.background)
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TspTheme.colors.background)
     ) {
         ImageCanvasContainer(viewState, heightFraction)
 
@@ -63,11 +66,19 @@ fun EditImageScreen(
                 )
             }
 
-            ControlMode.ANOTHER_MODE -> {
+            ControlMode.POST_PROCESS -> {
                 ThirdControls(
                     modifier = Modifier.align(Alignment.BottomCenter),
                     showExposure = false,
                     viewState = viewState, onEvent = onEvent
+                )
+            }
+
+            ControlMode.DOTWORK -> {
+                DotworkControls(
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                    viewState = viewState,
+                    onEvent = onEvent
                 )
             }
         }

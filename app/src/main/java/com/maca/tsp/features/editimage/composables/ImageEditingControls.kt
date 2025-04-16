@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.maca.tsp.R
@@ -26,8 +25,6 @@ fun ImageEditingControls(
     pickImage: () -> Unit,
     onEvent: (ImageContract.ImageEvent) -> Unit
 ) {
-    val context = LocalContext.current
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -56,7 +53,7 @@ fun ImageEditingControls(
                 TspCircularIconButton(
                     modifier = Modifier.padding(end = TspTheme.spacing.spacing1),
                     icon = painterResource(id = R.drawable.ic_flip),
-                    onClick = { onEvent(ImageContract.ImageEvent.FlipImage(horizontal = true, context = context)) }
+                    onClick = { onEvent(ImageContract.ImageEvent.FlipImage(horizontal = true)) }
                 )
                 TspCircularIconButton(
                     icon = painterResource(id = if (viewState.isMinimized) R.drawable.ic_maximise else R.drawable.ic_minimize),

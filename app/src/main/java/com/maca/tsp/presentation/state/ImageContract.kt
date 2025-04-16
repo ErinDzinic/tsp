@@ -33,7 +33,10 @@ class ImageContract {
         val sketchGamma: Float = 1.0f,
         val basicFilteredBitmap: Bitmap? = null,
         val advancedFilteredBitmap: Bitmap? = null,
-        val isProcessingFilters: Boolean = false
+        val isProcessingFilters: Boolean = false,
+        val isDotworkEnabled: Boolean = false,
+        val dotDensity: Float = 0.3f,
+        val dotSize: Float = 4f
     ) : ViewState
 
     sealed class ImageEvent : ViewEvent {
@@ -46,7 +49,7 @@ class ImageContract {
         // Toggle Black & White & Flip Image
         data class ToggleBlackAndWhite(val isEnabled: Boolean, val context: Context) : ImageEvent()
         data class ToggleRemoveBackground(val isEnabled: Boolean) : ImageEvent()
-        data class FlipImage(val horizontal: Boolean, val context: Context) : ImageEvent()
+        data class FlipImage(val horizontal: Boolean) : ImageEvent()
         // Adjust filter values
         data class SelectFilter(val filterType: ImageFilterType) : ImageEvent()
         data class UpdateFilterValue(val filterType: ImageFilterType, val value: Float, val context: Context) : ImageEvent()
@@ -58,6 +61,8 @@ class ImageContract {
         data class SaveImageClicked(val context: Context) : ImageEvent()
         data class UpdateSketchDetails(val value: Float) : ImageEvent()
         data class UpdateSketchGamma(val value: Float) : ImageEvent()
+        data class UpdateDotDensity(val value: Float) : ImageEvent()
+        data class UpdateDotSize(val value: Float) : ImageEvent()
     }
 
     sealed class ImageEffect : ViewSideEffect {

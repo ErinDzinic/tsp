@@ -67,7 +67,7 @@ fun SecondControls(
                     SecondaryButton(
                         modifier = Modifier.weight(1f).padding(start = TspTheme.spacing.spacing1),
                         text = stringResource(R.string.next),
-                        onClick = { onEvent(ImageContract.ImageEvent.ChangeControlMode(ControlMode.ANOTHER_MODE)) }
+                        onClick = { onEvent(ImageContract.ImageEvent.ChangeControlMode(ControlMode.POST_PROCESS)) }
                     )
                 }
             }
