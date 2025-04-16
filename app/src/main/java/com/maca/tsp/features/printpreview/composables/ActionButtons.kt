@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.maca.tsp.R
 import com.maca.tsp.designsystem.SecondaryButton
 import com.maca.tsp.ui.theme.TspTheme
 
@@ -27,23 +29,28 @@ fun ActionButtons(
 ) {
     Column(
         modifier = modifier
-            .heightIn(max = TspTheme.spacing.spacing30) // Use theme spacing
-            .padding(horizontal = TspTheme.spacing.spacing10), // Use theme spacing
-        verticalArrangement = Arrangement.spacedBy(TspTheme.spacing.spacing1_5) // Use theme spacing
+            .heightIn(max = TspTheme.spacing.spacing30)
+            .padding(horizontal = TspTheme.spacing.spacing10)
+            .padding(top = TspTheme.spacing.spacing3),
+        verticalArrangement = Arrangement.spacedBy(TspTheme.spacing.spacing1_5)
     ) {
         SecondaryButton(
-            text = "Print", // Pass text directly
-            onClick = onPrintClick // Use passed lambda
+            text = stringResource(R.string.print),
+            onClick = onPrintClick,
+            icon = R.drawable.ic_print,
+            iconSize = TspTheme.spacing.spacing2_75
         )
-
         SecondaryButton(
-            text = "Save", // Pass text directly
-            onClick = onSaveClick // Use passed lambda
+            text = stringResource(R.string.save),
+            onClick = onSaveClick,
+            icon = R.drawable.ic_save,
+            iconSize = TspTheme.spacing.spacing2_75
         )
-
         SecondaryButton(
-            text = "Exit",
-            onClick = onExitClick // Use passed lambda
+            text = stringResource(R.string.exit),
+            onClick = onExitClick,
+            icon = R.drawable.ic_exit,
+            iconSize = TspTheme.spacing.spacing2_75
         )
     }
 }

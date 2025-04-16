@@ -81,6 +81,7 @@ fun SecondaryButton(
     isDisabled: Boolean = false,
     showIcon: Boolean = true,
     icon: Int = R.drawable.ic_right,
+    iconSize: Dp = TspTheme.spacing.spacing4,
     onClick: () -> Unit
 ) {
     OutlinedButton(
@@ -107,7 +108,7 @@ fun SecondaryButton(
                 Icon(
                     modifier = Modifier
                         .padding(start = TspTheme.spacing.spacing1)
-                        .size(TspTheme.spacing.spacing4),
+                        .size(iconSize),
                     painter = painterResource(icon),
                     contentDescription = null,
                     tint = Color.White

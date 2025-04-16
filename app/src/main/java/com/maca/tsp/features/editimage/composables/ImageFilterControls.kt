@@ -22,7 +22,7 @@ import com.maca.tsp.ui.theme.TspTheme
 
 @Composable
 fun ImageFilterControls(
-    selectedFilter: ImageFilterType?,
+    selectedFilter: ImageFilterType? = ImageFilterType.GAMMA,
     showExposure: Boolean = true,
     onFilterSelected: (ImageFilterType) -> Unit,
     filterValue: Float,

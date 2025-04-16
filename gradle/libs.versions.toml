@@ -15,6 +15,7 @@ hilt = "2.51.1"
 hilt-compiler = "1.2.0"
 hiltCommon = "1.2.0"
 ksp-plugin = "1.9.0-1.0.13"
+segmentationSelfie = "16.0.0-beta5"
 timber = "5.0.1"
 androidx-splash = "1.0.1"
 ucrop = "2.2.10"
@@ -44,6 +45,7 @@ hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-com
 androidx-hilt-common = { group = "androidx.hilt", name = "hilt-common", version.ref = "hiltCommon" }
 androidx-splash = { group = "androidx.core", name = "core-splashscreen", version.ref = "androidx-splash" }
 
+segmentation-selfie = { module = "com.google.mlkit:segmentation-selfie", version.ref = "segmentationSelfie" }
 timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
 ucrop = { module = "com.github.yalantis:ucrop", version.ref = "ucrop" }
 

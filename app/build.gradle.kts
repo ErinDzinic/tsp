@@ -84,4 +84,7 @@ dependencies {
     implementation(libs.coil.compose)
     //uCROP
     implementation(libs.ucrop)
+    //MLKit
+    implementation(libs.segmentation.selfie)
+
 }

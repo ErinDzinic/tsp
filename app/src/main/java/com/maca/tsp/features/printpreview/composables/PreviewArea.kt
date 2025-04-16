@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import com.maca.tsp.data.enums.PrintType
@@ -29,6 +30,7 @@ fun PreviewArea(
     bitmap: Bitmap,
     printType: PrintType,
     onScaleChanged: (Float) -> Unit,
+    onOffsetChanged: (Offset) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -42,9 +44,9 @@ fun PreviewArea(
                     when (printType) {
                         PrintType.SLEEVE -> Modifier
                             .fillMaxHeight(0.9f) // Maintain original ratios
-                            .fillMaxWidth(0.25f)
+                            .fillMaxWidth(0.7f)
                         else -> Modifier
-                            .fillMaxWidth(0.9f) // Maintain original ratios
+                            .fillMaxWidth(1f) // Maintain original ratios
                             .aspectRatio(210f / 297f) // A4 Aspect Ratio
                     }
                 }
@@ -56,7 +58,8 @@ fun PreviewArea(
             PrintableImageCanvas(
                 bitmap = bitmap,
                 printType = printType,
-                onScaleChanged = onScaleChanged // Pass the callback down
+                onScaleChanged = onScaleChanged,
+                onOffsetChanged = onOffsetChanged
             )
         }
     }

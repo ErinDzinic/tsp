@@ -15,10 +15,11 @@ class ImageContract {
         val isMinimized: Boolean = false,
         val isCropping: Boolean = false,
         val isBlackAndWhite: Boolean = false,
+        val isRemoveBackground: Boolean = false,
         val isSketchEnabled: Boolean = false,
         val controlMode: ControlMode = ControlMode.BASIC,
         // Store values separately for each filter
-        val selectedFilter: ImageFilterType? = null,
+        val selectedFilter: ImageFilterType? = ImageFilterType.GAMMA,
         val brightness: Float = 0f,
         val exposure: Float = 1f,
         val contrast: Float = 1f,
@@ -27,7 +28,12 @@ class ImageContract {
         val gaussianBlur: Float = 1f,
         val currentBitmap: Bitmap? = null,
         val showPrintDialog: Boolean = false,
-        val selectedPrintType: PrintType = PrintType.SINGLE
+        val selectedPrintType: PrintType = PrintType.SINGLE,
+        val sketchDetails: Float = 10f,
+        val sketchGamma: Float = 1.0f,
+        val basicFilteredBitmap: Bitmap? = null,
+        val advancedFilteredBitmap: Bitmap? = null,
+        val isProcessingFilters: Boolean = false
     ) : ViewState
 
     sealed class ImageEvent : ViewEvent {
@@ -39,24 +45,27 @@ class ImageContract {
         data object CancelCrop : ImageEvent()
         // Toggle Black & White & Flip Image
         data class ToggleBlackAndWhite(val isEnabled: Boolean, val context: Context) : ImageEvent()
+        data class ToggleRemoveBackground(val isEnabled: Boolean) : ImageEvent()
         data class FlipImage(val horizontal: Boolean, val context: Context) : ImageEvent()
         // Adjust filter values
         data class SelectFilter(val filterType: ImageFilterType) : ImageEvent()
         data class UpdateFilterValue(val filterType: ImageFilterType, val value: Float, val context: Context) : ImageEvent()
         data class ChangeControlMode(val mode: ControlMode) : ImageEvent()
-        data object EnableSketch : ImageEvent()
-        data object DisableSketch : ImageEvent()
         data object PrintButtonClicked : ImageEvent()
         data class PrintTypeSelected(val printType: PrintType) : ImageEvent()
         data object PrintDialogDismissed : ImageEvent()
         data object SaveCanvasStateRequested : ImageEvent()
-
+        data class SaveImageClicked(val context: Context) : ImageEvent()
+        data class UpdateSketchDetails(val value: Float) : ImageEvent()
+        data class UpdateSketchGamma(val value: Float) : ImageEvent()
     }
 
     sealed class ImageEffect : ViewSideEffect {
         sealed class Navigation : ImageEffect() {
             data object ToImageDetails : Navigation()
             data object ToPrintPreview : Navigation()
+            data class ShowToast(val message: String) : ImageEffect()
+            data class SaveImageToGallery(val bitmap: Bitmap, val context: Context) : ImageEffect()
         }
     }
 }

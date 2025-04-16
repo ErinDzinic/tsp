@@ -35,6 +35,7 @@ data class TspSpacing(
     val spacing1_75 : Dp = 14.dp,
     val spacing2: Dp = 16.dp,
     val spacing2_5 : Dp = 20.dp,
+    val spacing2_75 : Dp = 22.dp,
     val spacing3: Dp = 24.dp,
     val spacing3_5 : Dp = 28.dp,
     val spacing3_75 : Dp = 30.dp,
@@ -67,6 +68,7 @@ data class TspSpacing(
     val spacing30 : Dp = 240.dp,
     val spacing40 : Dp = 320.dp,
     val spacing45 : Dp = 360.dp,
+    val spacing55 : Dp = 400.dp,
 )
 
 val LocalTspSpacing = staticCompositionLocalOf { TspSpacing() }

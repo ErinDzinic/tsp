@@ -30,7 +30,7 @@ fun PrintOptionsDialog(
         onDismissRequest = onDismissRequest,
         title = {
             Text(
-                "Please choose print version",
+                stringResource(R.string.please_choose_print_version),
                 style = TspTheme.typography.titleMedium,
                 modifier = Modifier.padding(bottom = TspTheme.spacing.spacing4)
             )

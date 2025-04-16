@@ -1,9 +1,13 @@
 package com.maca.tsp.features.navigation
 
+import android.os.Build
+import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -26,12 +30,12 @@ enum class MainScreens {
 sealed class MainNavigationItem(
     val route: String,
 ) {
-    data object Home : MainNavigationItem(MainScreens.HOME.name,)
+    data object Home : MainNavigationItem(MainScreens.HOME.name)
     data object EditImage : MainNavigationItem(MainScreens.EDIT_IMAGE.name)
     data object PrintPreview : MainNavigationItem(MainScreens.PRINT_PREVIEW.name)
-
 }
 
+@RequiresApi(Build.VERSION_CODES.Q)
 @Composable
 fun MainScreenNavHost(
     navController: NavHostController,
@@ -41,12 +45,22 @@ fun MainScreenNavHost(
 
     val imageViewModel: ImageViewModel = hiltViewModel()
     val viewState = imageViewModel.viewState.collectAsState().value
+    val context = LocalContext.current
 
     LaunchedEffect(SIDE_EFFECTS_KEY) {
         imageViewModel.effect.onEach { effect ->
             when (effect) {
-                ImageContract.ImageEffect.Navigation.ToImageDetails -> navController.navigate(MainNavigationItem.EditImage.route)
-                ImageContract.ImageEffect.Navigation.ToPrintPreview -> navController.navigate(MainNavigationItem.PrintPreview.route)
+                ImageContract.ImageEffect.Navigation.ToImageDetails -> navController.navigate(
+                    MainNavigationItem.EditImage.route
+                )
+
+                ImageContract.ImageEffect.Navigation.ToPrintPreview -> navController.navigate(
+                    MainNavigationItem.PrintPreview.route
+                )
+                is ImageContract.ImageEffect.Navigation.SaveImageToGallery -> {imageViewModel.saveBitmapToGallery(effect.bitmap, context)}
+                is ImageContract.ImageEffect.Navigation.ShowToast -> {
+                    Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
+                }
             }
         }.collect()
     }
@@ -56,9 +70,19 @@ fun MainScreenNavHost(
         startDestination = startDestination
     ) {
         composable(MainNavigationItem.Home.route) { HomeScreen(imageViewModel::setEvent) }
-        composable(MainNavigationItem.EditImage.route) { EditImageScreen(viewState = viewState, onEvent = imageViewModel::setEvent) }
-        composable(MainNavigationItem.PrintPreview.route) { PrintPreviewCanvas(viewState = viewState, onEvent = imageViewModel::setEvent, onExitClick = {
-            navController.popBackStack()
-        }) }
+        composable(MainNavigationItem.EditImage.route) {
+            EditImageScreen(
+                viewState = viewState,
+                onEvent = imageViewModel::setEvent
+            )
+        }
+        composable(MainNavigationItem.PrintPreview.route) {
+            PrintPreviewCanvas(
+                viewState = viewState,
+                onEvent = imageViewModel::setEvent,
+                onExitClick = {
+                    navController.popBackStack()
+                })
+        }
     }
 }

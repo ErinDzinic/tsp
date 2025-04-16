@@ -26,7 +26,8 @@ fun PrintableImageCanvas(
     bitmap: Bitmap,
     modifier: Modifier = Modifier,
     printType: PrintType,
-    onScaleChanged: (Float) -> Unit // Callback to provide the scale
+    onScaleChanged: (Float) -> Unit,
+    onOffsetChanged: (Offset) -> Unit
 ) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
@@ -63,7 +64,7 @@ fun PrintableImageCanvas(
                         x = newOffsetX.coerceIn(-absBoundX, absBoundX),
                         y = newOffsetY.coerceIn(-absBoundY, absBoundY) // Use absBoundY here
                     )
-                    // --- FIX ENDS HERE ---
+                    onOffsetChanged(offset)
                 }
             }
     ) {
