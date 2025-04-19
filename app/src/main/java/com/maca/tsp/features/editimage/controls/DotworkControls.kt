@@ -17,6 +17,7 @@ import com.maca.tsp.data.enums.ControlMode
 import com.maca.tsp.designsystem.BackButton
 import com.maca.tsp.designsystem.SecondaryButton
 import com.maca.tsp.designsystem.TspCircularIconButton
+import com.maca.tsp.features.editimage.composables.BlackAndWhiteSwitch
 import com.maca.tsp.presentation.state.ImageContract
 import com.maca.tsp.presentation.state.ImageContract.ImageEvent
 import com.maca.tsp.ui.theme.TspTheme
@@ -58,8 +59,8 @@ fun DotworkControls(
                         BackButton(
                             modifier = Modifier.weight(1f),
                             onClick = {
-                                // Go back to the previous controls (ANOTHER_MODE)
-                                onEvent(ImageContract.ImageEvent.ChangeControlMode(ControlMode.POST_PROCESS))
+                                onEvent(ImageEvent.ToggleDotwork(false))
+                                onEvent(ImageEvent.ChangeControlMode(ControlMode.POST_PROCESS))
                             }
                         )
 
@@ -67,10 +68,9 @@ fun DotworkControls(
                             icon = painterResource(id = if (viewState.isMinimized) R.drawable.ic_maximise else R.drawable.ic_minimize),
                             backgroundColor = if (viewState.isMinimized) TspTheme.colors.colorPurple else TspTheme.colors.colorGrayishBlack,
                             iconColor = if (viewState.isMinimized) TspTheme.colors.darkYellow else TspTheme.colors.background,
-                            onClick = { onEvent(ImageContract.ImageEvent.IsMinimized) }
+                            onClick = { onEvent(ImageEvent.IsMinimized) }
                         )
 
-                        // Keep Print button accessible? Or remove from this specific screen?
                         SecondaryButton(
                             modifier = Modifier.weight(1f),
                             icon = R.drawable.ic_print,
@@ -105,12 +105,18 @@ fun DotworkControls(
                     filterValue = viewState.dotSize, // Display value
                     valueRange = 2f..50f, // Adjust range as needed (iOS max was 50)
                     onIconClick = { /* Reset size? */
-                        onEvent(ImageEvent.UpdateDotSize(4f)) // Example reset
+                        onEvent(ImageEvent.UpdateDotSize(2f)) // Example reset
                     },
                     onSliderChange = { newValue ->
                         onEvent(ImageEvent.UpdateDotSize(newValue))
                     }
                 )
+
+                BlackAndWhiteSwitch(
+                    isBlackAndWhite = viewState.isDotworkEnabled
+                ) {
+                    onEvent(ImageEvent.ToggleDotwork(!viewState.isDotworkEnabled))
+                }
             }
         }
     }

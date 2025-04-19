@@ -35,8 +35,8 @@ class ImageContract {
         val advancedFilteredBitmap: Bitmap? = null,
         val isProcessingFilters: Boolean = false,
         val isDotworkEnabled: Boolean = false,
-        val dotDensity: Float = 0.3f,
-        val dotSize: Float = 4f
+        val dotDensity: Float = 0.2f,
+        val dotSize: Float = 2f
     ) : ViewState
 
     sealed class ImageEvent : ViewEvent {
@@ -63,6 +63,7 @@ class ImageContract {
         data class UpdateSketchGamma(val value: Float) : ImageEvent()
         data class UpdateDotDensity(val value: Float) : ImageEvent()
         data class UpdateDotSize(val value: Float) : ImageEvent()
+        data class ToggleDotwork(val isEnabled: Boolean) : ImageEvent()
     }
 
     sealed class ImageEffect : ViewSideEffect {

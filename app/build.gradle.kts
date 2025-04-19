@@ -87,4 +87,5 @@ dependencies {
     //MLKit
     implementation(libs.segmentation.selfie)
 
+    implementation(libs.kotlinx.coroutines.play.services)
 }

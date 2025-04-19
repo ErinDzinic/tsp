@@ -80,6 +80,18 @@ fun ThirdControls(
                                 onEvent(ImageContract.ImageEvent.PrintButtonClicked)
                             })
                     }
+                    SecondaryButton(
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .padding(top = TspTheme.spacing.spacing1)
+                            .fillMaxWidth(),
+                        text = "DotWork", // Or use stringResource
+                        // Add an icon if desired: icon = R.drawable.ic_dots,
+                        onClick = {
+                            // Change mode to show DotWork controls
+                            onEvent(ImageEvent.ChangeControlMode(ControlMode.DOTWORK))
+                        }
+                    )
                 }
             }
 
@@ -106,18 +118,6 @@ fun ThirdControls(
                                 context
                             )
                         )
-                    }
-                )
-                SecondaryButton(
-                    modifier = Modifier
-                        .fillMaxWidth() // Make button wider?
-                        .padding(horizontal = TspTheme.spacing.spacing4) // Add horizontal padding
-                        .padding(vertical = TspTheme.spacing.spacing1), // Add vertical padding
-                    text = "DotWork", // Or use stringResource
-                    // Add an icon if desired: icon = R.drawable.ic_dots,
-                    onClick = {
-                        // Change mode to show DotWork controls
-                        onEvent(ImageEvent.ChangeControlMode(ControlMode.DOTWORK))
                     }
                 )
             }

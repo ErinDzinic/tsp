@@ -3,11 +3,14 @@ package com.maca.tsp.presentation.viewmodel
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import androidx.annotation.DrawableRes
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.viewModelScope
+import com.maca.tsp.R
 import com.maca.tsp.common.util.DispatcherProvider
 import com.maca.tsp.common.util.ImageFilterUtils
 import com.maca.tsp.common.util.ImageUtils.uriToBitmap
@@ -15,11 +18,10 @@ import com.maca.tsp.data.enums.ControlMode
 import com.maca.tsp.data.enums.ImageFilterType
 import com.maca.tsp.presentation.state.BaseViewModel
 import com.maca.tsp.presentation.state.ImageContract.ImageEffect
-import com.maca.tsp.presentation.state.ImageContract.ImageEffect.Navigation.SaveImageToGallery
-import com.maca.tsp.presentation.state.ImageContract.ImageEffect.Navigation.ShowToast
 import com.maca.tsp.presentation.state.ImageContract.ImageEvent
 import com.maca.tsp.presentation.state.ImageContract.ImageViewState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -31,27 +33,50 @@ import kotlin.system.measureTimeMillis
 @HiltViewModel
 class ImageViewModel @Inject constructor(
     private val dispatcher: DispatcherProvider,
+    @ApplicationContext private val appContext: Context // Inject Application Context
 ) : BaseViewModel<ImageEvent, ImageViewState, ImageEffect>(
     dispatcher
 ) {
     private var originalBitmap: Bitmap? = null
     private var filterJob: Job? = null
 
+    // --- Preloaded Textures ---
+    private var grainTexture1: Bitmap? = null
+    private var grainTexture2: Bitmap? = null
+    private var blackTexture: Bitmap? = null
+
+    init {
+        // Preload textures on initialization
+        viewModelScope.launch(dispatcher.io) {
+            loadTexture(R.drawable.grain_texture_1)?.let { grainTexture1 = it }
+            loadTexture(R.drawable.grain_texture_2)?.let { grainTexture2 = it }
+            loadTexture(R.drawable.grain_texture_3)?.let { blackTexture = it }
+            if (grainTexture1 == null || grainTexture2 == null || blackTexture == null) {
+                Timber.w("Failed to load one or more dotwork textures!")
+                // Optionally set an effect to notify UI?
+            } else {
+                Timber.d("Dotwork textures loaded successfully.")
+            }
+        }
+    }
+
+    /** Helper function to load textures safely */
+    private fun loadTexture(@DrawableRes resId: Int): Bitmap? {
+        return try {
+            val options = BitmapFactory.Options().apply { inScaled = false }
+            BitmapFactory.decodeResource(appContext.resources, resId, options)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to load texture resource: $resId")
+            null
+        }
+    }
+
     // --- Initial State ---
     override fun setInitialState(): ImageViewState = ImageViewState(
-        // Default values for filters
-        brightness = 0f,
-        contrast = 1f,
-        exposure = 1f, // Default exposure is typically 1.0
-        gamma = 1f,
-        sharpness = 0f,
-        gaussianBlur = 1f, // Default for ANOTHER_MODE blur
-        sketchDetails = 10f, // Default for ADVANCED sketch details
-        sketchGamma = 1.0f, // Default for ADVANCED sketch gamma
-        // --- Cached bitmaps ---
-        basicFilteredBitmap = null,
-        advancedFilteredBitmap = null,
-        isProcessingFilters = false
+        brightness = 0f, contrast = 1f, exposure = 1f, gamma = 1f, sharpness = 0f,
+        gaussianBlur = 1f, sketchDetails = 10f, sketchGamma = 1.0f,
+        isDotworkEnabled = false, dotDensity = 0.3f, dotSize = 4f,
+        basicFilteredBitmap = null, advancedFilteredBitmap = null, isProcessingFilters = false
     )
 
     // --- Event Handling ---
@@ -94,8 +119,8 @@ class ImageViewModel @Inject constructor(
                         }
                         is ImageEvent.SaveImageClicked -> {
                             viewState.value.displayBitmap?.let { bitmap ->
-                                withContext(dispatcher.main) { setEffect { SaveImageToGallery(bitmap, event.context) } }
-                            } ?: withContext(dispatcher.main) { setEffect { ShowToast("No image to save.") } }
+                                withContext(dispatcher.main) { setEffect { ImageEffect.Navigation.SaveImageToGallery(bitmap, event.context) } }
+                            } ?: withContext(dispatcher.main) { setEffect { ImageEffect.Navigation.ShowToast("No image to save.") } }
                         }
                         is ImageEvent.UpdateSketchDetails -> {
                             withContext(dispatcher.main) { setState { copy(sketchDetails = event.value) } }
@@ -105,9 +130,21 @@ class ImageViewModel @Inject constructor(
                             withContext(dispatcher.main) { setState { copy(sketchGamma = event.value) } }
                             recalculateFiltersForCurrentMode()
                         }
-
-                        is ImageEvent.UpdateDotDensity -> TODO()
-                        is ImageEvent.UpdateDotSize -> TODO()
+                        // --- Stipple Event Handlers ---
+                        is ImageEvent.UpdateDotDensity -> {
+                            // Only update value, enable happens via ToggleDotwork
+                            withContext(dispatcher.main) { setState { copy(dotDensity = event.value) } }
+                            if (viewState.value.isDotworkEnabled) recalculateFiltersForCurrentMode()
+                        }
+                        is ImageEvent.UpdateDotSize -> {
+                            // Only update value, enable happens via ToggleDotwork
+                            withContext(dispatcher.main) { setState { copy(dotSize = event.value) } }
+                            if (viewState.value.isDotworkEnabled) recalculateFiltersForCurrentMode()
+                        }
+                        is ImageEvent.ToggleDotwork -> { // Handler for explicit toggle
+                            withContext(dispatcher.main) { setState { copy(isDotworkEnabled = event.isEnabled) } }
+                            recalculateFiltersForCurrentMode()
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -120,7 +157,7 @@ class ImageViewModel @Inject constructor(
     }
 
     // --- Event Handler Implementations ---
-
+    // ... (handleImageSelected, startCropping, handleCropResult, handleToggleBlackAndWhite, handleToggleRemoveBackground, handleFlipImage, handleSelectFilter, handleUpdateFilterValue, handleChangeControlMode remain the same) ...
     private suspend fun handleImageSelected(event: ImageEvent.ImageSelected) {
         Timber.d("handleImageSelected START")
         val bitmap = try {
@@ -254,14 +291,18 @@ class ImageViewModel @Inject constructor(
     // --- Corrected handleChangeControlMode (No Reset) ---
     private suspend fun handleChangeControlMode(mode: ControlMode) {
         Timber.d("handleChangeControlMode: $mode")
-        val shouldEnableSketch = mode == ControlMode.ADVANCED // Flag is only for UI state now
+        val shouldEnableSketch = mode == ControlMode.ADVANCED
+        // Update isDotworkEnabled based on whether the NEW mode is DOTWORK
+        // Keep existing isDotworkEnabled state unless explicitly changed by Toggle event
+        // val shouldEnableDotwork = mode == ControlMode.DOTWORK // Don't automatically enable/disable here
 
         withContext(dispatcher.main) {
             // Update state: set new mode and sketch UI status
             setState {
                 copy(
                     controlMode = mode,
-                    isSketchEnabled = shouldEnableSketch // Controls UI, not filter chain directly
+                    isSketchEnabled = shouldEnableSketch // Controls UI for sketch sliders
+                    // isDotworkEnabled = shouldEnableDotwork // Let ToggleDotwork handle this
                 )
             }
         }
@@ -294,7 +335,10 @@ class ImageViewModel @Inject constructor(
                     Timber.d("Applying BASIC filters...")
                     // TODO: Optimization - Use cached basicFilteredBitmap if available and basic params haven't changed
                     val stage1Result = applyBasicFilters(baseBitmap, currentState)
-                    // Update cache
+                    // Update cache (can stay on background thread)
+                    // Be careful updating state directly from background thread
+                    // Consider sending an update event or using thread-safe state mechanism if needed
+                    // For now, direct update (might cause issues if read/write overlap)
                     setState { copy(basicFilteredBitmap = stage1Result) }
                     Timber.d("BASIC filters applied.")
 
@@ -308,7 +352,7 @@ class ImageViewModel @Inject constructor(
                     Timber.d("Applying ADVANCED filters (Sketch)...")
                     val stage2Input = stage1Result // Use result from previous stage
                     // TODO: Optimization - Use cached advancedFilteredBitmap if available and sketch params haven't changed (and stage1Result is same as cached basic)
-                    val stage2Result = applyAdvancedFilters(stage2Input, currentState) // Apply sketch regardless of isSketchEnabled flag now
+                    val stage2Result = applyAdvancedFilters(stage2Input, currentState) // Applies sketch based on params
                     setState { copy(advancedFilteredBitmap = stage2Result) }
                     Timber.d("ADVANCED filters applied.")
 
@@ -318,32 +362,29 @@ class ImageViewModel @Inject constructor(
                         return@withContext applyFinalAdjustments(stage2Result, currentState)
                     }
 
-                    // --- Stage 3: ANOTHER_MODE (Blur) ---
-                    Timber.d("Applying ANOTHER_MODE filters (Blur)...")
+                    // --- Stage 3: ANOTHER_MODE / DOTWORK (Blur + Dotwork) ---
+                    Timber.d("Applying Stage 3 filters (Blur/Dotwork)...")
                     val stage3Input = stage2Result // Use result from previous stage (which now includes sketch)
-                    val stage3Result = applyAnotherModeFilters(stage3Input, currentState)
-                    // No separate cache needed for final stage before adjustments
-                    Timber.d("ANOTHER_MODE filters applied.")
+                    // Pass textures to the stage 3 function
+                    val stage3Result = applyPostProcessingFilters(stage3Input, currentState)
+                    Timber.d("Stage 3 filters applied.")
 
-                    // If current mode is ANOTHER_MODE, apply final adjustments and finish
-                    if (currentState.controlMode == ControlMode.POST_PROCESS) {
-                        Timber.d("Mode is ANOTHER_MODE, applying final adjustments.")
+                    if (currentState.controlMode == ControlMode.POST_PROCESS || currentState.controlMode == ControlMode.DOTWORK) {
+                        Timber.d("Mode is ${currentState.controlMode}, applying final adjustments.")
                         return@withContext applyFinalAdjustments(stage3Result, currentState)
                     }
 
-                    // Fallback if mode is somehow invalid
                     Timber.w("Reached end of recalculateFilters without matching mode, returning stage 1 result.")
-                    applyFinalAdjustments(stage1Result, currentState)
+                    applyFinalAdjustments(stage1Result, currentState) // Apply final adjustments even in fallback
                 }
             } catch (e: Exception) {
                 Timber.e(e, "Error during filter recalculation for mode ${currentState.controlMode}")
                 withContext(dispatcher.main) { setEffect { ImageEffect.Navigation.ShowToast("Error applying filters") } }
-                null // Return null on error
+                null
             }
         }
         Timber.d("Filter recalculation took $time ms")
 
-        // Update the display bitmap on the Main thread if successful
         if (finalResult != null) {
             withContext(dispatcher.main) {
                 Timber.d("Updating displayBitmap.")
@@ -359,28 +400,24 @@ class ImageViewModel @Inject constructor(
         // withContext(dispatcher.main) { setState { copy(isProcessingFilters = false) } }
     }
 
-    // --- Stage-Specific Filter Functions ---
+    // --- Stage-Specific Filter Functions (with Error Handling and Logging) ---
 
     /** Applies filters relevant to the BASIC stage */
     private suspend fun applyBasicFilters(inputBitmap: Bitmap, state: ImageViewState): Bitmap {
+        // ... (Implementation remains the same) ...
         return try {
             withContext(dispatcher.default) {
                 var result = inputBitmap.copy(inputBitmap.config ?: Bitmap.Config.ARGB_8888, true)
                 Timber.v("Applying Brightness: ${state.brightness}")
                 if (state.brightness != 0f) result = ImageFilterUtils.applyBrightness(result, state.brightness)
-
                 Timber.v("Applying Exposure: ${state.exposure}")
                 if (state.exposure != 1f) result = ImageFilterUtils.applyExposure(result, state.exposure)
-
                 Timber.v("Applying Contrast: ${state.contrast}")
                 if (state.contrast != 1f) result = ImageFilterUtils.applyContrast(result, state.contrast)
-
                 Timber.v("Applying Gamma: ${state.gamma}")
                 if (state.gamma != 1f) result = ImageFilterUtils.applyGamma(result, state.gamma)
-
                 Timber.v("Applying Sharpness: ${state.sharpness}")
                 if (state.sharpness != 0f) result = ImageFilterUtils.applySharpness(result, state.sharpness)
-
                 result
             }
         } catch (e: Exception) {
@@ -389,23 +426,18 @@ class ImageViewModel @Inject constructor(
         }
     }
 
-    // --- FIX: Removed isSketchEnabled check ---
     /** Applies filters relevant to the ADVANCED (Sketch) stage */
     private suspend fun applyAdvancedFilters(inputBitmap: Bitmap, state: ImageViewState): Bitmap {
+        // ... (Implementation remains the same - applies sketch based on params) ...
         return try {
             withContext(dispatcher.default) {
-                var result = inputBitmap // Start from previous stage result
-                // Always apply sketch based on parameters if this stage is reached
+                var result = inputBitmap
                 Timber.v("Applying Sketch: details=${state.sketchDetails}, gamma=${state.sketchGamma}")
                 result = ImageFilterUtils.applySketchFilter(
                     result,
                     state.sketchDetails,
                     state.sketchGamma
                 )
-                // Note: We apply sketch regardless of the isSketchEnabled flag here,
-                // because if we are calculating up to ADVANCED or ANOTHER_MODE,
-                // the sketch *should* be part of the cumulative chain based on its parameters.
-                // The isSketchEnabled flag is primarily for UI control state.
                 result
             }
         } catch (e: Exception) {
@@ -413,44 +445,57 @@ class ImageViewModel @Inject constructor(
             inputBitmap // Return input on error
         }
     }
-    // --- End Fix ---
 
-    /** Applies filters relevant to the ANOTHER_MODE stage */
-    private suspend fun applyAnotherModeFilters(inputBitmap: Bitmap, state: ImageViewState): Bitmap {
+    /** Applies filters relevant to the Post-Processing stage (Blur, Dotwork) */
+    private suspend fun applyPostProcessingFilters(inputBitmap: Bitmap, state: ImageViewState): Bitmap {
         return try {
             withContext(dispatcher.default) {
-                var result = inputBitmap // Start from previous stage result
-                // Apply Gaussian Blur if value is set
+                var result = inputBitmap // Start from previous stage result (includes sketch)
+
+                // Apply Gaussian Blur if value is set (controlled by ANOTHER_MODE UI)
                 if (state.gaussianBlur > 1f) { // Check default
                     Timber.v("Applying Gaussian Blur: ${state.gaussianBlur}")
                     result = ImageFilterUtils.applyGaussianBlur(result, state.gaussianBlur)
                 } else {
                     Timber.v("Skipping Gaussian Blur (value <= 1)")
                 }
-                // Add other filters specific to ANOTHER_MODE here if any
+
+                // Apply Dotwork Filter (controlled by DOTWORK UI state)
+                if (state.isDotworkEnabled) { // Check the flag
+                    Timber.v("Applying Dotwork: density=${state.dotDensity}, size=${state.dotSize}")
+                    // Pass preloaded textures
+                    result = ImageFilterUtils.applyDotworkEffect(
+                        inputBitmap = result, // Apply to blurred (if applied) or sketched result
+                        dotDensity = state.dotDensity,
+                        dotSize = state.dotSize,
+                        grainTexture1 = grainTexture1,
+                        grainTexture2 = grainTexture2,
+                        blackTexture = blackTexture
+                    )
+                } else {
+                    Timber.v("Skipping Dotwork (isDotworkEnabled=false)")
+                }
+
                 result
             }
         } catch (e: Exception) {
-            Timber.e(e, "Error in applyAnotherModeFilters")
+            Timber.e(e, "Error in applyPostProcessingFilters")
             inputBitmap // Return input on error
         }
     }
 
     /** Applies final adjustments like B&W and Background Removal */
     private suspend fun applyFinalAdjustments(inputBitmap: Bitmap, state: ImageViewState): Bitmap {
+        // ... (Implementation remains the same) ...
         return try {
             withContext(dispatcher.default) {
                 var result = inputBitmap
-
-                // Apply background removal first if enabled
                 if (state.isRemoveBackground) {
                     Timber.v("Applying Background Removal")
-                    result = ImageFilterUtils.removeBackground(result) // Suspend function
+                    result = ImageFilterUtils.removeBackground(result)
                 } else {
                     Timber.v("Skipping Background Removal")
                 }
-
-                // Apply B&W last if enabled
                 if (state.isBlackAndWhite) {
                     Timber.v("Applying Black and White")
                     result = ImageFilterUtils.applyBlackAndWhiteFilter(result)
@@ -473,15 +518,13 @@ class ImageViewModel @Inject constructor(
         val contentResolver = context.contentResolver
         val imageName = "FilteredImage_${System.currentTimeMillis()}.png"
         val imageCollection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-
         val contentValues = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, imageName)
             put(MediaStore.Images.Media.MIME_TYPE, "image/png")
             put(MediaStore.Images.Media.WIDTH, bitmap.width)
             put(MediaStore.Images.Media.HEIGHT, bitmap.height)
         }
-
-        viewModelScope.launch(dispatcher.io) { // Use IO dispatcher for file operations
+        viewModelScope.launch(dispatcher.io) {
             try {
                 contentResolver.insert(imageCollection, contentValues)?.also { uri ->
                     contentResolver.openOutputStream(uri)?.use { outputStream ->
@@ -492,7 +535,7 @@ class ImageViewModel @Inject constructor(
                         }
                     } ?: run {
                         setEffect { ImageEffect.Navigation.ShowToast("Failed to get output stream.") }
-                        contentResolver.delete(uri, null, null) // Clean up entry if stream fails
+                        contentResolver.delete(uri, null, null)
                     }
                 } ?: run {
                     setEffect { ImageEffect.Navigation.ShowToast("Failed to create gallery entry.") }
