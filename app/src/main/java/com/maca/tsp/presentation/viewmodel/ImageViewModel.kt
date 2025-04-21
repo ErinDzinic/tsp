@@ -38,7 +38,6 @@ import kotlinx.coroutines.withContext
 import timber.log.Timber
 import javax.inject.Inject
 import kotlin.math.min
-import kotlin.system.measureTimeMillis
 
 
 @OptIn(FlowPreview::class)
@@ -54,62 +53,50 @@ class ImageViewModel @Inject constructor(
     private var grainTexture1: Bitmap? = null
 
 
-    // --- Preloaded Textures ---
-
     init {
 
         viewModelScope.launch(dispatcher.io) {
             Timber.d("Loading textures...")
-            grainTexture1 = loadTexture(R.drawable.grain_texture_1, 512, 512) // Example size 512x512
+            grainTexture1 = loadTexture(R.drawable.grain_texture_1, 512, 512)
 
-            if (grainTexture1 == null /* || grainTexture2 == null */) { // Check only essential textures
+            if (grainTexture1 == null) {
                 Timber.w("Failed to load one or more grain textures!")
             } else {
                 Timber.d("Grain texture(s) loaded successfully.")
             }
         }
 
-        // Debounce logic for filter updates
-        viewModelScope.launch(dispatcher.io) { // Use IO dispatcher for flow collection
+        viewModelScope.launch(dispatcher.io) {
             filterUpdateFlow
-                .debounce(0L) // Debounce for 300 milliseconds
-                .collectLatest { // Use collectLatest to cancel previous recalculation if a new event arrives after debounce
+                .debounce(200L)
+                .collectLatest {
                     Timber.d("Debounced filter update triggered.")
-                    // Ensure recalculation happens off the main thread but can update state safely
-                    val calculationJob = launch(dispatcher.default) { // Launch calculation on Default dispatcher
-                        // Manage processing flag around the calculation
+                    val calculationJob = launch(dispatcher.default) {
                         withContext(dispatcher.main) { setState { copy(isProcessingFilters = true) } }
                         try {
                             recalculateFiltersForCurrentMode()
                         } catch (e: Exception) {
                             Timber.e(e, "Error during debounced filter recalculation")
-                            // Show error effect on main thread
                             withContext(dispatcher.main) { setEffect { ImageEffect.Navigation.ShowToast("Error applying filters: ${e.message}") } }
                         } finally {
-                            // Ensure isProcessingFilters is set to false *after* calculation finishes or fails, on main thread
                             withContext(dispatcher.main) { setState { copy(isProcessingFilters = false) } }
                         }
                     }
-                    // We don't explicitly manage filterJob here anymore, collectLatest handles cancellation
                 }
         }
     }
 
     private fun loadTexture(@DrawableRes resId: Int, targetWidth: Int = 512, targetHeight: Int = 512): Bitmap? {
         return try {
-            // Use AppCompatResources for better compatibility
             val drawable: Drawable? = AppCompatResources.getDrawable(appContext, resId)
 
             when (drawable) {
                 is BitmapDrawable -> {
-                    // It's already a bitmap
                     Timber.v("Loaded texture resource $resId as BitmapDrawable")
                     drawable.bitmap
                 }
-                // Check for VectorDrawable or VectorDrawableCompat
                 is android.graphics.drawable.VectorDrawable, is VectorDrawableCompat -> {
                     Timber.v("Loaded texture resource $resId as VectorDrawable, rasterizing...")
-                    // Create a bitmap and draw the vector onto it
                     val bitmap = createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
                     val canvas = Canvas(bitmap)
                     drawable.setBounds(0, 0, canvas.width, canvas.height)
@@ -134,33 +121,28 @@ class ImageViewModel @Inject constructor(
         gaussianBlur = 1f, sketchDetails = 10f, sketchGamma = 1.0f,
         isDotworkEnabled = false, dotDensity = 0.3f, dotSize = 4f,
         basicFilteredBitmap = null, advancedFilteredBitmap = null, isProcessingFilters = false,
-        controlMode = ControlMode.BASIC // Ensure initial mode is BASIC
+        controlMode = ControlMode.BASIC
     )
 
-    // --- Event Handling ---
     override fun handleEvents(event: ImageEvent) {
-        // Removed filterJob cancellation and processing flags from here
-        viewModelScope.launch(dispatcher.default) { // Use default dispatcher for event handling logic
-            // Removed main try/catch/finally for isProcessing flag - handled by debouncer now
-            // try { // Removed
-            withContext(dispatcher.default) { // Ensure event handling logic runs off main thread initially
+        viewModelScope.launch(dispatcher.default) {
+            withContext(dispatcher.default) {
                 when (event) {
-                    is ImageEvent.ImageSelected -> handleImageSelected(event) // Calls triggerDebouncedUpdate internally
+                    is ImageEvent.ImageSelected -> handleImageSelected(event)
                     is ImageEvent.IsMinimized -> {
-                        // This doesn't need debouncing, just update state
                         setState { copy(isMinimized = !isMinimized) }
                     }
-                    is ImageEvent.StartCrop -> startCropping() // No recalculation needed yet
-                    is ImageEvent.CropResult -> handleCropResult(event.uri, event.context) // Calls triggerDebouncedUpdate internally
-                    is ImageEvent.ToggleBlackAndWhite -> handleToggleBlackAndWhite(event.isEnabled) // Calls triggerDebouncedUpdate
-                    is ImageEvent.ToggleRemoveBackground -> handleToggleRemoveBackground(event.isEnabled) // Calls triggerDebouncedUpdate
-                    is ImageEvent.FlipImage -> handleFlipImage(event.horizontal) // Calls triggerDebouncedUpdate
+                    is ImageEvent.StartCrop -> startCropping()
+                    is ImageEvent.CropResult -> handleCropResult(event.uri, event.context)
+                    is ImageEvent.ToggleBlackAndWhite -> handleToggleBlackAndWhite(event.isEnabled)
+                    is ImageEvent.ToggleRemoveBackground -> handleToggleRemoveBackground(event.isEnabled)
+                    is ImageEvent.FlipImage -> handleFlipImage(event.horizontal)
                     is ImageEvent.CancelCrop -> {
                         setState { copy(isCropping = false) }
                     }
-                    is ImageEvent.SelectFilter -> handleSelectFilter(event.filterType) // No recalculation needed
-                    is ImageEvent.UpdateFilterValue -> handleUpdateFilterValue(event) // Calls triggerDebouncedUpdate
-                    is ImageEvent.ChangeControlMode -> handleChangeControlMode(event.mode) // Calls triggerDebouncedUpdate internally
+                    is ImageEvent.SelectFilter -> handleSelectFilter(event.filterType)
+                    is ImageEvent.UpdateFilterValue -> handleUpdateFilterValue(event)
+                    is ImageEvent.ChangeControlMode -> handleChangeControlMode(event.mode)
                     ImageEvent.PrintButtonClicked -> {
                         setState { copy(showPrintDialog = true) }
                     }
@@ -169,13 +151,12 @@ class ImageViewModel @Inject constructor(
                     }
                     is ImageEvent.PrintTypeSelected -> {
                         setState { copy(showPrintDialog = false, selectedPrintType = event.printType) }
-                        setEvent(ImageEvent.SaveCanvasStateRequested) // Trigger effect via event
+                        setEvent(ImageEvent.SaveCanvasStateRequested)
                     }
                     ImageEvent.SaveCanvasStateRequested -> {
                         setEffect { ImageEffect.Navigation.ToPrintPreview }
                     }
                     is ImageEvent.SaveImageClicked -> {
-                        // No recalculation needed, just trigger effect
                         viewState.value.displayBitmap?.let { bitmap ->
                             setEffect { ImageEffect.Navigation.SaveImageToGallery(bitmap, event.context) }
                         } ?: setEffect { ImageEffect.Navigation.ShowToast("No image to save.") }
@@ -196,7 +177,7 @@ class ImageViewModel @Inject constructor(
                         setState { copy(dotSize = event.value) }
                         if (viewState.value.isDotworkEnabled) triggerDebouncedUpdate()
                     }
-                    is ImageEvent.ToggleDotwork -> { // Handler for explicit toggle
+                    is ImageEvent.ToggleDotwork -> {
                         setState { copy(isDotworkEnabled = event.isEnabled) }
                         triggerDebouncedUpdate()
                     }
@@ -229,22 +210,21 @@ class ImageViewModel @Inject constructor(
 
 
         setState {
-            setInitialState().copy( // Reset state completely
-                rawImage = event.uri, // Keep original URI
-                displayBitmap = originalBitmap, // Display potentially rotated bitmap initially
-                transformedImage = null, // Clear transformed/cache
-                basicFilteredBitmap = null, // Clear caches
+            setInitialState().copy(
+                rawImage = event.uri,
+                displayBitmap = originalBitmap,
+                transformedImage = null,
+                basicFilteredBitmap = null,
                 advancedFilteredBitmap = null,
                 isImageLoading = true
             )
         }
         setEffect { ImageEffect.Navigation.ToImageDetails }
-        triggerDebouncedUpdate() // Calculate initial filters (debounced)
+        triggerDebouncedUpdate()
         Timber.d("handleImageSelected END")
     }
 
     private fun startCropping() {
-        // Update state on Main thread
         setState { copy(isCropping = true) }
     }
 
@@ -260,17 +240,17 @@ class ImageViewModel @Inject constructor(
         originalBitmap = croppedBitmap
         withContext(dispatcher.main) {
             setState {
-                setInitialState().copy( // Reset state
+                setInitialState().copy(
                     rawImage = uri,
-                    displayBitmap = croppedBitmap, // Display cropped initially
+                    displayBitmap = croppedBitmap,
                     transformedImage = null,
                     basicFilteredBitmap = null,
-                    advancedFilteredBitmap = null, // Clear caches
+                    advancedFilteredBitmap = null,
                     isCropping = false
                 )
             }
         }
-        triggerDebouncedUpdate() // Recalculate filters for cropped image (debounced)
+        triggerDebouncedUpdate()
         Timber.d("handleCropResult END")
     }
 
@@ -302,7 +282,7 @@ class ImageViewModel @Inject constructor(
             withContext(dispatcher.main) { setEffect { ImageEffect.Navigation.ShowToast("Failed to flip image") } }
             return
         }
-        originalBitmap = flippedBitmap // Update the base original bitmap
+        originalBitmap = flippedBitmap
 
         setState {
             copy(
@@ -311,19 +291,17 @@ class ImageViewModel @Inject constructor(
                 transformedImage = null
             )
         }
-        triggerDebouncedUpdate() // Recalculate all filters (debounced)
+        triggerDebouncedUpdate()
         Timber.d("handleFlipImage END")
     }
 
     private fun handleSelectFilter(filterType: ImageFilterType) {
         Timber.d("handleSelectFilter: $filterType")
         setState { copy(selectedFilter = filterType) }
-        // No recalculation needed here, happens on value change
     }
 
     private fun handleUpdateFilterValue(event: ImageEvent.UpdateFilterValue) {
         Timber.d("handleUpdateFilterValue: ${event.filterType} = ${event.value}")
-        // Update state immediately on Main thread
         val newState = when (event.filterType) {
             ImageFilterType.BRIGHTNESS -> viewState.value.copy(brightness = event.value)
             ImageFilterType.CONTRAST -> viewState.value.copy(contrast = event.value)
@@ -333,7 +311,6 @@ class ImageViewModel @Inject constructor(
             ImageFilterType.GAUSSIAN_BLUR -> viewState.value.copy(gaussianBlur = event.value)
         }
         setState { newState }
-        // Trigger recalculation via debounced flow
         triggerDebouncedUpdate()
     }
 
@@ -345,53 +322,44 @@ class ImageViewModel @Inject constructor(
         setState {
             copy(
                 controlMode = mode,
-                isSketchEnabled = shouldEnableSketch // This state is mainly for UI control visibility
+                isSketchEnabled = shouldEnableSketch
             )
         }
-        // Always trigger recalculation after mode change (debounced)
-        // The recalculation pipeline will now check the mode internally
         triggerDebouncedUpdate()
     }
 
-    // --- Central Recalculation Logic ---
-    // This function now runs inside the debounced collector
     private suspend fun recalculateFiltersForCurrentMode() {
         val baseBitmap = originalBitmap ?: run {
-            Timber.w("recalculateFiltersForCurrentMode: originalBitmap is null")
             return
         }
         val currentState = viewState.value
-        Timber.d("Recalculating filters for mode: ${currentState.controlMode}")
 
         var finalResult: Bitmap? = null
-        val time = measureTimeMillis {
-            finalResult = try {
-                Timber.v("Applying BASIC filters...")
-                var stage1Result = applyBasicFilters(baseBitmap, currentState)
 
-                Timber.v("Applying ADVANCED filters (Sketch)...")
-                var stage2Result = applyAdvancedFilters(stage1Result, currentState)
+        finalResult = try {
+            Timber.v("Applying BASIC filters...")
+            var stage1Result = applyBasicFilters(baseBitmap, currentState)
 
-                Timber.v("Applying Stage 3 filters (Blur/Dotwork)...")
-                var stage3Result = applyPostProcessingFilters(stage2Result, currentState)
+            Timber.v("Applying ADVANCED filters (Sketch)...")
+            var stage2Result = applyAdvancedFilters(stage1Result, currentState)
 
-                Timber.v("Applying final adjustments...")
-                applyFinalAdjustments(stage3Result, currentState)
+            Timber.v("Applying Stage 3 filters (Blur/Dotwork)...")
+            var stage3Result = applyPostProcessingFilters(stage2Result, currentState)
 
-            } catch (e: Exception) {
-                Timber.e(e, "Error during filter recalculation pipeline for mode ${currentState.controlMode}")
-                null
-            }
+            Timber.v("Applying final adjustments...")
+            applyFinalAdjustments(stage3Result, currentState)
+
+        } catch (e: Exception) {
+            Timber.e(e, "Error during filter recalculation pipeline for mode ${currentState.controlMode}")
+            null
         }
-        Timber.d("Filter recalculation pipeline took $time ms")
 
-        val resultToUpdate = finalResult // Capture the potentially null result
+        val resultToUpdate = finalResult
 
         if (resultToUpdate != null) {
             val previewBitmap = createPreviewBitmap(resultToUpdate)
 
             withContext(dispatcher.main) {
-                Timber.d("Updating displayBitmap with preview.")
                 setState {
                     copy(
                         transformedImage = resultToUpdate,
@@ -414,10 +382,10 @@ class ImageViewModel @Inject constructor(
             source.scale((source.width * scale).toInt(), (source.height * scale).toInt())
         } catch (e: OutOfMemoryError) {
             Timber.e(e, "OOM Error creating preview bitmap, returning original.")
-            source // Fallback to original if scaling fails
+            source
         } catch (e: Exception) {
             Timber.e(e, "Error creating preview bitmap, returning original.")
-            source // Fallback on other errors
+            source
         }
     }
 

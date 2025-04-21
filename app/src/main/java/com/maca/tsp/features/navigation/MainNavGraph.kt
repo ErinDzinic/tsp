@@ -57,7 +57,7 @@ fun MainScreenNavHost(
                 ImageContract.ImageEffect.Navigation.ToPrintPreview -> navController.navigate(
                     MainNavigationItem.PrintPreview.route
                 )
-                is ImageContract.ImageEffect.Navigation.SaveImageToGallery -> {imageViewModel.saveBitmapToGallery(effect.bitmap, context)}
+                is ImageContract.ImageEffect.Navigation.SaveImageToGallery -> { imageViewModel.saveBitmapToGallery(effect.bitmap, context)}
                 is ImageContract.ImageEffect.Navigation.ShowToast -> {
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
                 }

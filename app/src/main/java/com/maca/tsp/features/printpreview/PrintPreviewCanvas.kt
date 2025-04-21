@@ -223,21 +223,18 @@ fun PrintPreviewCanvas(
 
                 ActionButtons(
                     onPrintClick = {
-                        // --- GUARD ADDED FOR SINGLE/BACK ---
                         if (isPrinting) return@ActionButtons
                         val currentBitmap = viewState.displayBitmap
                         if (currentBitmap == null || previewAreaSize == Size.Zero) {
                             Toast.makeText(context, "Preview area not ready, please wait", Toast.LENGTH_SHORT).show()
                             return@ActionButtons
                         }
-                        // --- END GUARD ---
 
                         isPrinting = true
                         CoroutineScope(Dispatchers.Default).launch {
-                            // Pass the confirmed non-null bitmap and valid size
                             val positioningInfo = PrintHelper.calculatePrintPositioning(
-                                originalBitmap = currentBitmap, // Use guarded bitmap
-                                previewCanvasSize = previewAreaSize, // Use measured size
+                                originalBitmap = currentBitmap,
+                                previewCanvasSize = previewAreaSize,
                                 currentScale = currentScale,
                                 currentOffset = currentOffset,
                                 targetPrintCanvasSize = targetPrintSize
@@ -253,11 +250,10 @@ fun PrintPreviewCanvas(
 
                             try {
                                 val renderedBitmap = PrintHelper.renderFullAreaBitmap(
-                                    original = currentBitmap, // Use guarded bitmap
+                                    original = currentBitmap,
                                     positioningInfo = positioningInfo,
                                     printType = printType
                                 )
-                                // ... rest of single/back print logic ...
                                 val bitmapsToPrint = PrintHelper.sliceBitmap(renderedBitmap, printType)
                                 if (bitmapsToPrint.isNotEmpty()) {
                                     withContext(Dispatchers.Main) {
@@ -306,7 +302,7 @@ fun PrintPreviewCanvas(
                             }
                         }
                     },
-                    onSaveClick = { /* ... save logic ... */ },
+                    onSaveClick = { onEvent(ImageContract.ImageEvent.SaveImageClicked(context)) },
                     onExitClick = onExitClick
                 )
             }

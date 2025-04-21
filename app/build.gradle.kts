@@ -9,6 +9,15 @@ android {
     namespace = "com.maca.tsp"
     compileSdk = 35
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("keystore.jks")
+            storePassword = "keystore1!"
+            keyAlias = "key0"
+            keyPassword = "keystore1!"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.maca.tsp"
         minSdk = 21
@@ -29,8 +38,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
