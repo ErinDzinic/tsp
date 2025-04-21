@@ -69,7 +69,7 @@ fun MainScreenNavHost(
         navController = navController,
         startDestination = startDestination
     ) {
-        composable(MainNavigationItem.Home.route) { HomeScreen(imageViewModel::setEvent) }
+        composable(MainNavigationItem.Home.route) { HomeScreen(imageViewModel::setEvent, viewState.isImageLoading) }
         composable(MainNavigationItem.EditImage.route) {
             EditImageScreen(
                 viewState = viewState,

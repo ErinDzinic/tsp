@@ -12,4 +12,6 @@
     <string name="save">Save</string>
     <string name="exit">Exit</string>
     <string name="please_choose_print_version">Please choose print version</string>
+    <string name="enable_dotwork">Enable DotWork</string>
+    <string name="dotwork">DotWork</string>
 </resources>

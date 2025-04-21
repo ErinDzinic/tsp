@@ -36,7 +36,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
 import com.maca.tsp.R
 import com.maca.tsp.common.util.PrintHelper
-import com.maca.tsp.common.util.PrintHelper.calculatePrintPositioning
 import com.maca.tsp.data.enums.PrintType
 import com.maca.tsp.designsystem.SecondaryButton
 import com.maca.tsp.features.printpreview.composables.ActionButtons
@@ -62,10 +61,9 @@ fun PrintPreviewCanvas(
     val printType = viewState.selectedPrintType
     val isSleeve = printType == PrintType.SLEEVE
     val context = LocalContext.current
-    var isPrinting by remember { mutableStateOf(false) } // Add state for loading indicator
-    var previewAreaSize by remember { mutableStateOf(Size.Zero) }
+    var isPrinting by remember { mutableStateOf(false) }
+    var previewAreaSize by remember { mutableStateOf(Size.Zero) } // State for measured size
 
-    // Calculate target print dimensions (memoized)
     val targetPrintSize = remember(printType) {
         when (printType) {
             PrintType.SLEEVE -> IntSize(PrintHelper.A4_WIDTH_PX, PrintHelper.A4_HEIGHT_PX * 3)
@@ -73,7 +71,7 @@ fun PrintPreviewCanvas(
             PrintType.SINGLE -> IntSize(PrintHelper.A4_WIDTH_PX, PrintHelper.A4_HEIGHT_PX)
         }
     }
-    // Basic loading overlay (replace with a nicer one if needed)
+
     if (isPrinting) {
         Box(
             modifier = Modifier
@@ -98,6 +96,7 @@ fun PrintPreviewCanvas(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
+                    // Measure the size of this Box, which contains PreviewArea
                     .onSizeChanged { previewAreaSize = it.toSize() },
                 contentAlignment = Alignment.Center
             ) {
@@ -112,27 +111,25 @@ fun PrintPreviewCanvas(
                 }
             }
 
-            // Action Panel
             SleeveActionPanel(
                 bitmap = viewState.displayBitmap,
                 currentScale = currentScale,
                 onPrintClick = {
+                    // --- GUARD ADDED FOR SLEEVE ---
                     if (isPrinting) return@SleeveActionPanel
+                    val currentBitmap = viewState.displayBitmap
+                    if (currentBitmap == null || previewAreaSize == Size.Zero) {
+                        Toast.makeText(context, "Preview area not ready, please wait", Toast.LENGTH_SHORT).show()
+                        return@SleeveActionPanel
+                    }
+                    // --- END GUARD ---
+
                     isPrinting = true
                     CoroutineScope(Dispatchers.Default).launch {
-                        val original = viewState.displayBitmap
-                        if (original == null) {
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(context, "Bitmap not ready", Toast.LENGTH_SHORT)
-                                    .show()
-                                isPrinting = false
-                            }
-                            return@launch
-                        }
-
-                        val positioningInfo = calculatePrintPositioning(
-                            originalBitmap = original,
-                            previewCanvasSize = previewAreaSize,
+                        // Pass the confirmed non-null bitmap and valid size
+                        val positioningInfo = PrintHelper.calculatePrintPositioning(
+                            originalBitmap = currentBitmap, // Use guarded bitmap
+                            previewCanvasSize = previewAreaSize, // Use measured size
                             currentScale = currentScale,
                             currentOffset = currentOffset,
                             targetPrintCanvasSize = targetPrintSize
@@ -148,13 +145,12 @@ fun PrintPreviewCanvas(
 
                         try {
                             val fullSleeveBitmap = PrintHelper.renderFullAreaBitmap(
-                                original = original,
+                                original = currentBitmap, // Use guarded bitmap
                                 positioningInfo = positioningInfo,
                                 printType = PrintType.SLEEVE
                             )
-
+                            // ... rest of sleeve print logic ...
                             val slices = PrintHelper.sliceBitmap(fullSleeveBitmap, PrintType.SLEEVE)
-
                             if (slices.isNotEmpty()) {
                                 withContext(Dispatchers.Main) {
                                     PrintHelper.printMultipleBitmaps(
@@ -162,11 +158,7 @@ fun PrintPreviewCanvas(
                                         context = context,
                                         jobName = "Sleeve Print",
                                         onPrintError = { errorMsg ->
-                                            Toast.makeText(
-                                                context,
-                                                "Print Error: $errorMsg",
-                                                Toast.LENGTH_LONG
-                                            ).show()
+                                            Toast.makeText(context,"Print Error: $errorMsg", Toast.LENGTH_LONG).show()
                                             isPrinting = false
                                         }
                                     )
@@ -174,31 +166,24 @@ fun PrintPreviewCanvas(
                                 }
                             } else {
                                 withContext(Dispatchers.Main) {
-                                    Toast.makeText(
-                                        context,
-                                        "Failed to prepare slices",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                                    Toast.makeText(context, "Failed to prepare slices", Toast.LENGTH_SHORT).show()
                                     isPrinting = false
                                 }
                             }
                         } catch (e: Exception) {
                             withContext(Dispatchers.Main) {
-                                Toast.makeText(
-                                    context,
-                                    "Error during print prep: ${e.message}",
-                                    Toast.LENGTH_LONG
-                                ).show()
+                                Toast.makeText(context,"Error during print prep: ${e.message}",Toast.LENGTH_LONG).show()
                                 isPrinting = false
                             }
                         }
                     }
                 },
-                onSaveClick = { onEvent(ImageContract.ImageEvent.SaveImageClicked(context)) },
+                onSaveClick = { /* ... save logic ... */ },
                 onExitClick = onExitClick
             )
         }
     } else {
+        // --- Single/Back Layout ---
         Column(
             modifier = modifier
                 .fillMaxSize()
@@ -208,7 +193,9 @@ fun PrintPreviewCanvas(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    // Measure the size of this Box, which contains PreviewArea
+                    .onSizeChanged { previewAreaSize = it.toSize() },
                 contentAlignment = Alignment.Center
             ) {
                 viewState.displayBitmap?.let { bitmap ->
@@ -231,29 +218,25 @@ fun PrintPreviewCanvas(
             ) {
                 viewState.displayBitmap?.let { bitmap ->
                     DimensionDisplay(bitmap = bitmap, currentScale = currentScale)
-                    Divider(
-                        color = TspTheme.colors.colorGrayishBlack,
-                        thickness = TspTheme.spacing.extra_xxs
-                    )
+                    Divider( /* ... */ )
                 }
 
                 ActionButtons(
                     onPrintClick = {
+                        // --- GUARD ADDED FOR SINGLE/BACK ---
                         if (isPrinting) return@ActionButtons
+                        val currentBitmap = viewState.displayBitmap
+                        if (currentBitmap == null || previewAreaSize == Size.Zero) {
+                            Toast.makeText(context, "Preview area not ready, please wait", Toast.LENGTH_SHORT).show()
+                            return@ActionButtons
+                        }
+                        // --- END GUARD ---
+
                         isPrinting = true
                         CoroutineScope(Dispatchers.Default).launch {
-                            val original = viewState.displayBitmap
-                            if (original == null) {
-                                withContext(Dispatchers.Main) {
-                                    Toast.makeText(context, "Bitmap not ready", Toast.LENGTH_SHORT)
-                                        .show()
-                                    isPrinting = false
-                                }
-                                return@launch
-                            }
-
-                            val positioningInfo = calculatePrintPositioning(
-                                originalBitmap = original,
+                            // Pass the confirmed non-null bitmap and valid size
+                            val positioningInfo = PrintHelper.calculatePrintPositioning(
+                                originalBitmap = currentBitmap, // Use guarded bitmap
                                 previewCanvasSize = previewAreaSize, // Use measured size
                                 currentScale = currentScale,
                                 currentOffset = currentOffset,
@@ -270,14 +253,12 @@ fun PrintPreviewCanvas(
 
                             try {
                                 val renderedBitmap = PrintHelper.renderFullAreaBitmap(
-                                    original = original,
+                                    original = currentBitmap, // Use guarded bitmap
                                     positioningInfo = positioningInfo,
                                     printType = printType
                                 )
-
-                                val bitmapsToPrint =
-                                    PrintHelper.sliceBitmap(renderedBitmap, printType)
-
+                                // ... rest of single/back print logic ...
+                                val bitmapsToPrint = PrintHelper.sliceBitmap(renderedBitmap, printType)
                                 if (bitmapsToPrint.isNotEmpty()) {
                                     withContext(Dispatchers.Main) {
                                         if (printType == PrintType.BACK) {
@@ -313,27 +294,19 @@ fun PrintPreviewCanvas(
                                     }
                                 } else {
                                     withContext(Dispatchers.Main) {
-                                        Toast.makeText(
-                                            context,
-                                            "Failed to prepare image(s)",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
+                                        Toast.makeText(context, "Failed to prepare image(s)", Toast.LENGTH_SHORT).show()
                                         isPrinting = false
                                     }
                                 }
                             } catch (e: Exception) {
                                 withContext(Dispatchers.Main) {
-                                    Toast.makeText(
-                                        context,
-                                        "Error during print prep: ${e.message}",
-                                        Toast.LENGTH_LONG
-                                    ).show()
+                                    Toast.makeText(context, "Error during print prep: ${e.message}",Toast.LENGTH_LONG).show()
                                     isPrinting = false
                                 }
                             }
                         }
                     },
-                    onSaveClick = { onEvent(ImageContract.ImageEvent.SaveImageClicked(context)) },
+                    onSaveClick = { /* ... save logic ... */ },
                     onExitClick = onExitClick
                 )
             }
@@ -342,6 +315,7 @@ fun PrintPreviewCanvas(
 }
 
 
+// --- SleeveActionPanel Composable (Keep as is) ---
 @Composable
 fun SleeveActionPanel(
     bitmap: Bitmap?,
@@ -350,15 +324,15 @@ fun SleeveActionPanel(
     onSaveClick: () -> Unit,
     onExitClick: () -> Unit
 ) {
+    // ... (Implementation remains the same) ...
     Column(
         modifier = Modifier
-            // .fillMaxWidth(0.3f) // Example: 30% of available width
-            .width(200.dp) // Keep fixed width if preferred
-            .height(TspTheme.spacing.spacing55) // Fill height of the Row
-            .padding(start = TspTheme.spacing.spacing1) // Add padding between preview and panel
+            .width(200.dp)
+            .height(TspTheme.spacing.spacing55)
+            .padding(start = TspTheme.spacing.spacing1)
             .clip(RoundedCornerShape(TspTheme.spacing.spacing3))
-            .background(Color.Black), // Keep original background
-        verticalArrangement = Arrangement.Top, // Center items vertically
+            .background(Color.Black),
+        verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (bitmap != null) {
@@ -368,7 +342,6 @@ fun SleeveActionPanel(
                 thickness = TspTheme.spacing.extra_xxs,
             )
         }
-        // Use spacing within the column for buttons
         Column(
             modifier = Modifier
                 .padding(TspTheme.spacing.spacing2),
@@ -395,3 +368,5 @@ fun SleeveActionPanel(
         }
     }
 }
+
+

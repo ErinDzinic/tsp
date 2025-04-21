@@ -22,7 +22,17 @@ import androidx.compose.ui.unit.IntSize
 import androidx.core.graphics.createBitmap
 import com.maca.tsp.R
 import com.maca.tsp.data.enums.PrintType
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import timber.log.Timber
 import java.io.FileOutputStream
+import java.util.concurrent.Executors
+import kotlin.coroutines.cancellation.CancellationException
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 import android.graphics.Rect as AndroidRect
@@ -56,8 +66,13 @@ object PrintHelper {
         val jobName: String
     ) : PrintDocumentAdapter() {
         private var bitmapsToPrint: List<Bitmap> = emptyList()
+        private var printJob: Job? = null // To manage the background coroutine
 
-        // Accept single or multiple bitmaps
+        // Use a single-threaded context for writing to avoid potential issues
+        // Using Dispatchers.IO might be okay too, but this ensures serial access
+        private val printDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+
+
         fun setBitmap(bitmap: Bitmap?) {
             this.bitmapsToPrint = if (bitmap != null) listOf(bitmap) else emptyList()
         }
@@ -72,89 +87,143 @@ object PrintHelper {
             callback: LayoutResultCallback,
             options: Bundle?
         ) {
-            if (cancellationSignal?.isCanceled == true || bitmapsToPrint.isEmpty()) {
-                callback.onLayoutFailed("Cancelled or no bitmaps")
+            // Cancel any previous print job if layout changes
+            printJob?.cancel()
+
+            cancellationSignal?.setOnCancelListener { printJob?.cancel() }
+
+            if (bitmapsToPrint.isEmpty()) {
+                callback.onLayoutFailed("No bitmaps to print")
                 return
             }
 
             val pdi = PrintDocumentInfo.Builder(jobName)
                 .setContentType(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT)
-                .setPageCount(bitmapsToPrint.size) // Set page count based on list size
+                .setPageCount(bitmapsToPrint.size)
                 .build()
 
-            // Check if layout actually changed - optimisation
-            val layoutChanged = newAttributes != oldAttributes
-            callback.onLayoutFinished(pdi, layoutChanged)
+            callback.onLayoutFinished(pdi, newAttributes != oldAttributes)
         }
 
         override fun onWrite(
-            pages: Array<out PageRange>?, // Android system provides the specific pages to write
+            pages: Array<out PageRange>?,
             destination: ParcelFileDescriptor?,
             cancellationSignal: CancellationSignal?,
             callback: WriteResultCallback
         ) {
-            if (cancellationSignal?.isCanceled == true || destination == null) {
-                callback.onWriteFailed("Cancelled or destination is null")
+            if (destination == null) {
+                callback.onWriteFailed("Destination is null")
                 return
             }
 
-            // Define standard A4 attributes for PDF generation
-            val printAttributes = PrintAttributes.Builder()
-                .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
-                .setResolution(PrintAttributes.Resolution("pdf", "PDF resolution", 300, 300))
-                .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
-                .build()
-
-            val pdfDocument = PrintedPdfDocument(context, printAttributes)
-
-            // Determine which pages to write based on the 'pages' array
-            val pagesToWrite = computeWrittenPages(pages, bitmapsToPrint.size)
-
-            try {
-                pagesToWrite.forEach { pageIndex ->
+            // Launch the work on the background dispatcher
+            printJob = CoroutineScope(printDispatcher).launch {
+                var pdfDocument: PrintedPdfDocument? = null // Declare outside try
+                try {
+                    // Check for cancellation initially
                     if (cancellationSignal?.isCanceled == true) {
-                        pdfDocument.close() // Clean up if cancelled mid-process
+                        withContext(Dispatchers.Main) { callback.onWriteCancelled() }
+                        return@launch
+                    }
+
+                    // --- PDF Generation on Background Thread ---
+                    val printAttributes = PrintAttributes.Builder()
+                        .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
+                        .setResolution(PrintAttributes.Resolution("pdf", "PDF resolution", 300, 300))
+                        .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
+                        .build()
+
+                    pdfDocument = PrintedPdfDocument(context, printAttributes)
+
+                    val pagesToWrite = computeWrittenPages(pages, bitmapsToPrint.size)
+
+                    pagesToWrite.forEach { pageIndex ->
+                        // Check for cancellation *inside* the loop
+                        if (cancellationSignal?.isCanceled == true) {
+                            Timber.d("Print job cancelled during page processing.")
+                            // Clean up handled in finally block
+                            throw CancellationException("Print cancelled")
+                        }
+                        if (pageIndex >= bitmapsToPrint.size) return@forEach // Safety check
+
+                        val bitmap = bitmapsToPrint[pageIndex]
+                        val page = pdfDocument.startPage(pageIndex)
+                        val canvas = page.canvas
+
+                        // --- Fit bitmap onto A4 page logic ---
+                        val scale = minOf(
+                            canvas.width.toFloat() / bitmap.width,
+                            canvas.height.toFloat() / bitmap.height
+                        )
+                        val left = (canvas.width - bitmap.width * scale) / 2f
+                        val top = (canvas.height - bitmap.height * scale) / 2f
+                        val matrix = Matrix().apply {
+                            postScale(scale, scale)
+                            postTranslate(left, top)
+                        }
+                        // ------------------------------------
+
+                        canvas.drawBitmap(bitmap, matrix, null) // This drawing happens on background thread
+                        pdfDocument.finishPage(page)
+                        Timber.v("Processed page $pageIndex")
+                    }
+                    // --- End Page Loop ---
+
+                    // --- Write PDF to file descriptor ---
+                    Timber.d("Writing PDF document...")
+                    FileOutputStream(destination.fileDescriptor).use { output ->
+                        pdfDocument.writeTo(output)
+                    }
+                    Timber.d("PDF document written successfully.")
+                    // --- End Write PDF ---
+
+                    // --- Report Success (on Main Thread) ---
+                    withContext(Dispatchers.Main) {
+                        callback.onWriteFinished(pagesToWrite.map { PageRange(it, it) }.toTypedArray())
+                        Timber.d("onWriteFinished called.")
+                    }
+
+                } catch (e: CancellationException) { // Catch cancellation specifically
+                    withContext(Dispatchers.Main) {
                         callback.onWriteCancelled()
-                        return@forEach
+                        Timber.d("onWriteCancelled called.")
                     }
-                    if (pageIndex >= bitmapsToPrint.size) return@forEach // Safety check
-
-                    val bitmap = bitmapsToPrint[pageIndex]
-                    val page = pdfDocument.startPage(pageIndex) // Use pageIndex
-                    val canvas = page.canvas
-
-                    // --- Fit bitmap onto A4 page logic ---
-                    val scale = minOf(
-                        canvas.width.toFloat() / bitmap.width,
-                        canvas.height.toFloat() / bitmap.height
-                    )
-                    val left = (canvas.width - bitmap.width * scale) / 2f
-                    val top = (canvas.height - bitmap.height * scale) / 2f
-
-                    val matrix = Matrix().apply {
-                        postScale(scale, scale)
-                        postTranslate(left, top)
+                } catch (e: Exception) { // Catch other errors
+                    Timber.e(e, "Failed to write PDF")
+                    withContext(Dispatchers.Main) {
+                        callback.onWriteFailed("Failed to write PDF: ${e.message}")
+                        Timber.d("onWriteFailed called.")
                     }
-                    // ------------------------------------
-
-                    canvas.drawBitmap(bitmap, matrix, null)
-                    pdfDocument.finishPage(page)
+                } finally {
+                    // --- Cleanup (always executed) ---
+                    pdfDocument?.close()
+                    try {
+                        destination.close() // Close the file descriptor
+                    } catch(ioe: java.io.IOException) {
+                        Timber.e(ioe, "Error closing ParcelFileDescriptor")
+                    }
+                    Timber.d("PDF Document and destination closed.")
                 }
+            } // End CoroutineScope Launch
 
-                FileOutputStream(destination.fileDescriptor).use { output ->
-                    pdfDocument.writeTo(output)
-                }
-                // Inform system which pages were actually written
-                callback.onWriteFinished(pagesToWrite.map { PageRange(it, it) }.toTypedArray())
-
-            } catch (e: Exception) {
-                callback.onWriteFailed("Failed to write PDF: ${e.message}")
-            } finally {
-                pdfDocument.close()
+            // Set up cancellation listener for the signal from the print framework
+            cancellationSignal?.setOnCancelListener {
+                printJob?.cancel() // Cancel the coroutine if system requests cancellation
+                Timber.d("CancellationSignal received, cancelling print job.")
             }
+        } // End onWrite
+
+        override fun onFinish() {
+            // Cancel any ongoing job when the print process finishes (or is cancelled externally)
+            printJob?.cancel()
+            printDispatcher.close() // Shut down the dedicated dispatcher
+            Timber.d("Print job finished, dispatcher closed.")
+            super.onFinish()
         }
-        // Helper to figure out which pages to actually write based on Print framework request
+
+        // Helper to figure out which pages to actually write (unchanged)
         private fun computeWrittenPages(requestedPages: Array<out PageRange>?, totalPages: Int): List<Int> {
+            // ... (implementation remains the same) ...
             val writtenPages = mutableListOf<Int>()
             requestedPages?.forEach { range ->
                 for (i in range.start..range.end) {
@@ -169,7 +238,8 @@ object PrintHelper {
             }
             return writtenPages.distinct().sorted() // Ensure unique and ordered
         }
-    }
+    } // End BitmapPrintAdapter
+
 
     // --- Existing printMultipleBitmaps (Updated to use the improved Adapter) ---
     fun printMultipleBitmaps(
@@ -358,78 +428,120 @@ object PrintHelper {
 
     fun calculatePrintPositioning(
         originalBitmap: Bitmap,
-        previewCanvasSize: Size, // Size of the interactive canvas from PrintableImageCanvas
+        previewCanvasSize: Size, // Size of the interactive canvas
         currentScale: Float,
         currentOffset: Offset,
-        targetPrintCanvasSize: IntSize, // Size of the final output bitmap
-        // printType: PrintType // Might not be needed if targetPrintCanvasSize is always provided
+        targetPrintCanvasSize: IntSize // Size of the final output bitmap (e.g., A4, 3xA4)
     ): PrintPositioningInfo? {
 
-        // --- Placeholder Implementation ---
-        // This placeholder just fits the whole image centered, ignoring precise preview bounds.
-        // You need to replace this with accurate geometric calculations.
+        if (previewCanvasSize.width <= 0 || previewCanvasSize.height <= 0 || originalBitmap.width <= 0 || originalBitmap.height <= 0) {
+            Timber.w("Invalid input dimensions for calculatePrintPositioning.")
+            return null
+        }
 
-        // 1. Calculate the effective scale to fit the original bitmap into the previewCanvasSize
-        //    (This is similar to the initial scaling done in PrintableImageCanvas/render functions)
+        // 1. Determine the initial scale to fit the bitmap within the preview canvas (like in PrintableImageCanvas)
+        //    This represents the scale when zoom is 1.0f.
+        //    We assume the initial display fits the image centered within the preview.
         val fitScale = min(
             previewCanvasSize.width / originalBitmap.width,
             previewCanvasSize.height / originalBitmap.height
         )
-        val totalScale = fitScale * currentScale // Combine initial fit with user zoom
 
-        // 2. Calculate the bounds of the scaled bitmap *relative to the preview canvas center*
+        // 2. Calculate the total effective scale including user zoom.
+        val totalScale = fitScale * currentScale
+
+        // 3. Calculate the bounds of the fully scaled/panned bitmap *relative to the preview canvas*.
         val scaledWidth = originalBitmap.width * totalScale
         val scaledHeight = originalBitmap.height * totalScale
-        val scaledTopLeft = Offset(
-            x = previewCanvasSize.width / 2f + currentOffset.x - scaledWidth / 2f,
-            y = previewCanvasSize.height / 2f + currentOffset.y - scaledHeight / 2f
+        // Top-left corner calculation considers the center pivot and the pan offset.
+        val scaledTopLeftX = previewCanvasSize.width / 2f + currentOffset.x - scaledWidth / 2f
+        val scaledTopLeftY = previewCanvasSize.height / 2f + currentOffset.y - scaledHeight / 2f
+        val scaledBitmapBounds = ComposeRect(
+            offset = Offset(scaledTopLeftX, scaledTopLeftY),
+            size = Size(scaledWidth, scaledHeight)
         )
-        val scaledBitmapBounds = ComposeRect(offset = scaledTopLeft, size = Size(scaledWidth, scaledHeight))
 
-        // 3. *** CRITICAL STEP (Placeholder Needs Replacing) ***
-        //    Calculate the intersection between scaledBitmapBounds and the previewCanvas bounds (ComposeRect(Offset.Zero, previewCanvasSize)).
-        //    If there's no intersection, return null.
+        // 4. Define the bounds of the preview canvas itself.
         val previewBounds = ComposeRect(Offset.Zero, previewCanvasSize)
-        val intersectionRectCompose = scaledBitmapBounds.intersect(previewBounds) // This function might not exist, need library or manual calc
 
-        if (intersectionRectCompose.isEmpty) {
-            // return null // Image is entirely outside preview
-            // For now, let's pretend it's always visible to avoid breaking flow
+        // 5. Find the intersection rectangle (the visible portion of the bitmap in preview coordinates).
+        //    Compose Rect's intersect function requires API level that might not be met,
+        //    so we implement intersection manually.
+        val intersectLeft = max(scaledBitmapBounds.left, previewBounds.left)
+        val intersectTop = max(scaledBitmapBounds.top, previewBounds.top)
+        val intersectRight = min(scaledBitmapBounds.right, previewBounds.right)
+        val intersectBottom = min(scaledBitmapBounds.bottom, previewBounds.bottom)
+
+        // Check if there is a valid intersection
+        if (intersectLeft >= intersectRight || intersectTop >= intersectBottom) {
+            Timber.d("No intersection between scaled bitmap and preview bounds.")
+            return null // Image is entirely outside the preview area
         }
 
-        // 4. *** CRITICAL STEP (Placeholder Needs Replacing) ***
-        //    Map the intersectionRectCompose (which is in preview canvas coordinates) back to the *original bitmap's* coordinates
-        //    to get the sourceRect (AndroidRect). This involves reversing the scale and offset transformations.
-        //    This is complex geometry.
-        val srcLeft = 0 // TODO: Replace with actual calculated source left coordinate
-        val srcTop = 0  // TODO: Replace with actual calculated source top coordinate
-        val srcRight = originalBitmap.width // TODO: Replace with actual calculated source right coordinate
-        val srcBottom = originalBitmap.height // TODO: Replace with actual calculated source bottom coordinate
+        val intersectionRectCompose = ComposeRect(intersectLeft, intersectTop, intersectRight, intersectBottom)
 
-        val sourceRect = AndroidRect(srcLeft.coerceIn(0, originalBitmap.width),
-            srcTop.coerceIn(0, originalBitmap.height),
-            srcRight.coerceIn(0, originalBitmap.width),
-            srcBottom.coerceIn(0, originalBitmap.height))
+        // 6. Map the intersection rectangle (in preview canvas coordinates) back to the *original bitmap's* coordinates.
+        //    This determines the sourceRect.
+        //    Reverse the transformations: subtract offset, account for centering, divide by total scale.
 
-        if (sourceRect.width() <= 0 || sourceRect.height() <= 0) return null // Nothing visible
+        // Calculate intersection relative to the scaled bitmap's top-left corner
+        val intersectRelativeX = intersectionRectCompose.left - scaledBitmapBounds.left
+        val intersectRelativeY = intersectionRectCompose.top - scaledBitmapBounds.top
 
-        // 5. *** CRITICAL STEP (Placeholder Needs Replacing) ***
-        //    Calculate the destinationRect (ComposeRect) on the *targetPrintCanvas*. This should reflect the
-        //    positioning seen in the preview. You might use the "loss" percentages derived from the
-        //    intersection calculation or map the intersectionRectCompose proportionally to the targetPrintCanvasSize.
-        //    For this placeholder, we'll just center the sourceRect within the target canvas.
-        val printScale = min(
-            targetPrintCanvasSize.width.toFloat() / sourceRect.width(),
-            targetPrintCanvasSize.height.toFloat() / sourceRect.height()
+        // Scale these relative coordinates back to the original bitmap's pixel space
+        val srcLeft = (intersectRelativeX / totalScale).coerceIn(0f, originalBitmap.width.toFloat())
+        val srcTop = (intersectRelativeY / totalScale).coerceIn(0f, originalBitmap.height.toFloat())
+        val srcWidth = (intersectionRectCompose.width / totalScale).coerceIn(0f, originalBitmap.width - srcLeft)
+        val srcHeight = (intersectionRectCompose.height / totalScale).coerceIn(0f, originalBitmap.height - srcTop)
+
+        val sourceRect = AndroidRect(
+            srcLeft.roundToInt(),
+            srcTop.roundToInt(),
+            (srcLeft + srcWidth).roundToInt(),
+            (srcTop + srcHeight).roundToInt()
         )
-        val dstWidth = sourceRect.width() * printScale
-        val dstHeight = sourceRect.height() * printScale
-        val dstLeft = (targetPrintCanvasSize.width - dstWidth) / 2f
-        val dstTop = (targetPrintCanvasSize.height - dstHeight) / 2f
-        val destinationRect = ComposeRect(dstLeft, dstTop, dstLeft + dstWidth, dstTop + dstHeight)
 
+        // Sanity check for sourceRect dimensions
+        if (sourceRect.width() <= 0 || sourceRect.height() <= 0) {
+            Timber.w("Calculated sourceRect has zero or negative dimensions.")
+            return null
+        }
 
-        // --- End Placeholder ---
+        // 7. Map the intersection rectangle proportionally onto the targetPrintCanvasSize.
+        //    This determines the destinationRect.
+        //    Calculate the "loss" percentages from the preview to map position and size.
+
+        // Percentage position of the intersection's top-left within the preview canvas
+        val relativeXInPreview = intersectionRectCompose.left / previewCanvasSize.width
+        val relativeYInPreview = intersectionRectCompose.top / previewCanvasSize.height
+
+        // Percentage size of the intersection relative to the preview canvas
+        val relativeWidthInPreview = intersectionRectCompose.width / previewCanvasSize.width
+        val relativeHeightInPreview = intersectionRectCompose.height / previewCanvasSize.height
+
+        // Apply these percentages to the target print canvas size
+        val dstLeft = relativeXInPreview * targetPrintCanvasSize.width
+        val dstTop = relativeYInPreview * targetPrintCanvasSize.height
+        val dstWidth = relativeWidthInPreview * targetPrintCanvasSize.width
+        val dstHeight = relativeHeightInPreview * targetPrintCanvasSize.height
+
+        val destinationRect = ComposeRect(
+            left = dstLeft,
+            top = dstTop,
+            right = dstLeft + dstWidth,
+            bottom = dstTop + dstHeight
+        )
+
+        Timber.d("""
+            Calculated Positioning:
+            - Preview Size: $previewCanvasSize
+            - Scale: $currentScale, Offset: $currentOffset
+            - Scaled Bitmap Bounds (Preview): $scaledBitmapBounds
+            - Intersection (Preview): $intersectionRectCompose
+            - Source Rect (Original Bitmap): $sourceRect
+            - Target Print Size: $targetPrintCanvasSize
+            - Destination Rect (Print Canvas): $destinationRect
+        """.trimIndent())
 
         return PrintPositioningInfo(sourceRect = sourceRect, destinationRect = destinationRect)
     }

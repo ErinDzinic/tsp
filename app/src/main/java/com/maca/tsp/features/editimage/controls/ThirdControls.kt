@@ -85,10 +85,9 @@ fun ThirdControls(
                             .align(Alignment.End)
                             .padding(top = TspTheme.spacing.spacing1)
                             .fillMaxWidth(),
-                        text = "DotWork", // Or use stringResource
-                        // Add an icon if desired: icon = R.drawable.ic_dots,
+                        text = stringResource(R.string.dotwork),
+                        icon = R.drawable.dotwork_icon,
                         onClick = {
-                            // Change mode to show DotWork controls
                             onEvent(ImageEvent.ChangeControlMode(ControlMode.DOTWORK))
                         }
                     )

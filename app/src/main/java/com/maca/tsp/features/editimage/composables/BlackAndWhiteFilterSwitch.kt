@@ -80,3 +80,36 @@ fun RemoveBackgroundSwitch(
         }
     }
 }
+
+@Composable
+fun ApplyDotworkSwitch(
+    isDotworkEnabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .background(TspTheme.colors.scrim)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = TspTheme.spacing.spacing2_5,
+                    vertical = TspTheme.spacing.spacing0_5
+                )
+        ) {
+            Text(
+                stringResource(R.string.enable_dotwork),
+                color = TspTheme.colors.background,
+                modifier = Modifier.padding(end = TspTheme.spacing.spacing1),
+                style = TspTheme.typography.bodyLarge
+            )
+            Switch(
+                checked = isDotworkEnabled,
+                onCheckedChange = onCheckedChange
+            )
+        }
+    }
+}

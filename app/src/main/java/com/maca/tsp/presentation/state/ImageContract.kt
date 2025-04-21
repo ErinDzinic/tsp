@@ -10,6 +10,7 @@ import com.maca.tsp.data.enums.PrintType
 class ImageContract {
     data class ImageViewState(
         val rawImage: Uri? = null,
+        val isImageLoading: Boolean = false,
         val transformedImage: Bitmap? = null,
         val displayBitmap: Bitmap? = null,
         val isMinimized: Boolean = false,

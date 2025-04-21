@@ -1,5 +1,6 @@
 package com.maca.tsp.designsystem.dialogs
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,7 +47,7 @@ fun PrintOptionsDialog(
                         buttonSize = TspTheme.spacing.spacing6,
                         backgroundColor = TspTheme.colors.colorDarkGray,
                         iconColor = TspTheme.colors.background,
-                        onClick = {},
+                        onClick = { onDismissRequest.invoke() },
                         modifier = Modifier
                             .padding(horizontal = TspTheme.spacing.spacing0_5)
                     )
@@ -56,7 +57,11 @@ fun PrintOptionsDialog(
                     Icon(
                         painterResource(R.drawable.ic_print),
                         contentDescription = null,
-                        modifier = Modifier.size(TspTheme.spacing.spacing8),
+                        modifier = Modifier
+                            .size(TspTheme.spacing.spacing8)
+                            .clickable {
+                                onDismissRequest
+                            },
                         tint = TspTheme.colors.background
                     )
                 }

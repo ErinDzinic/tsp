@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,7 +25,8 @@ import com.maca.tsp.ui.theme.TspTheme
 
 @Composable
 fun HomeScreen(
-    onEvent: (ImageContract.ImageEvent) -> Unit
+    onEvent: (ImageContract.ImageEvent) -> Unit,
+    isLoading: Boolean,
 ) {
 
     val context = LocalContext.current
@@ -50,12 +52,16 @@ fun HomeScreen(
             )
             Spacer(modifier = Modifier.height(TspTheme.spacing.spacing10))
 
-            PrimaryButton(
-                text = stringResource(R.string.select_an_image),
-                onClick = {
-                    pickImage.invoke()
-                }
-            )
+            if(isLoading) {
+                CircularProgressIndicator(trackColor = TspTheme.colors.orange)
+            } else {
+                PrimaryButton(
+                    text = stringResource(R.string.select_an_image),
+                    onClick = {
+                        pickImage.invoke()
+                    }
+                )
+            }
         }
     }
 }

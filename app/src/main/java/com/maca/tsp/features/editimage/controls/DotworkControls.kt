@@ -17,7 +17,7 @@ import com.maca.tsp.data.enums.ControlMode
 import com.maca.tsp.designsystem.BackButton
 import com.maca.tsp.designsystem.SecondaryButton
 import com.maca.tsp.designsystem.TspCircularIconButton
-import com.maca.tsp.features.editimage.composables.BlackAndWhiteSwitch
+import com.maca.tsp.features.editimage.composables.ApplyDotworkSwitch
 import com.maca.tsp.presentation.state.ImageContract
 import com.maca.tsp.presentation.state.ImageContract.ImageEvent
 import com.maca.tsp.ui.theme.TspTheme
@@ -34,7 +34,9 @@ fun DotworkControls(
             .background(TspTheme.colors.scrim)
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(bottom = TspTheme.spacing.spacing1), // Add padding
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = TspTheme.spacing.spacing1), // Add padding
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(TspTheme.spacing.spacing1) // Add spacing
         ) {
@@ -83,13 +85,17 @@ fun DotworkControls(
 
             // --- Controls visible when not minimized ---
             if (!viewState.isMinimized) {
-
+                ApplyDotworkSwitch(
+                    isDotworkEnabled = viewState.isDotworkEnabled
+                ) {
+                    onEvent(ImageEvent.ToggleDotwork(!viewState.isDotworkEnabled))
+                }
                 // --- Dot Density Slider ---
                 SingleFilterControl(
-                    iconRes = R.drawable.ic_exit, // Replace with actual density icon
+                    iconRes = R.drawable.ic_dotdensity, // Replace with actual density icon
                     sliderValue = viewState.dotDensity,
                     filterValue = viewState.dotDensity, // Display value
-                    valueRange = 0.1f..1.0f, // Adjust range as needed
+                    valueRange = 0.1f..10f, // Adjust range as needed
                     onIconClick = { /* Reset density? */
                         onEvent(ImageEvent.UpdateDotDensity(0.3f)) // Example reset
                     },
@@ -100,7 +106,7 @@ fun DotworkControls(
 
                 // --- Dot Size Slider ---
                 SingleFilterControl(
-                    iconRes = R.drawable.ic_close, // Replace with actual size icon
+                    iconRes = R.drawable.ic_dotsize, // Replace with actual size icon
                     sliderValue = viewState.dotSize,
                     filterValue = viewState.dotSize, // Display value
                     valueRange = 2f..50f, // Adjust range as needed (iOS max was 50)
@@ -111,12 +117,6 @@ fun DotworkControls(
                         onEvent(ImageEvent.UpdateDotSize(newValue))
                     }
                 )
-
-                BlackAndWhiteSwitch(
-                    isBlackAndWhite = viewState.isDotworkEnabled
-                ) {
-                    onEvent(ImageEvent.ToggleDotwork(!viewState.isDotworkEnabled))
-                }
             }
         }
     }
